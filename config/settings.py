@@ -98,6 +98,8 @@ UPDATE_CHECK_INTERVAL_MINUTES = 60
 GIT_REMOTE = "origin"
 GIT_BRANCH = "main"
 ROLLBACK_ON_FAILURE = True
+AUTO_RESTART_ON_UPDATE = True
+SYSTEMD_SERVICE_NAME = "ixope"
 
 # ─── UI Icon Positions (480x480 round display) ───────────────────────────────
 # Layout philosophy:

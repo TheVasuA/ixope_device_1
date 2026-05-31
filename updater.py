@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -69,6 +70,8 @@ class Updater:
         LOG.info("Update available: %s -> %s", current_rev[:8], target_rev[:8])
         if self._apply_update(current_rev, target_rev):
             LOG.info("Update applied successfully")
+            if settings.AUTO_RESTART_ON_UPDATE:
+                self._restart_service()
         elif self.rollback_enabled:
             self._rollback(current_rev)
 
@@ -124,6 +127,25 @@ class Updater:
         if result.stderr:
             LOG.debug("Command stderr: %s", result.stderr.strip())
         return result.stdout
+
+    def _restart_service(self):
+        service = getattr(settings, "SYSTEMD_SERVICE_NAME", None)
+        if not service:
+            LOG.warning("AUTO_RESTART_ON_UPDATE is enabled but no SYSTEMD_SERVICE_NAME is configured")
+            return
+
+        systemctl_path = shutil.which("systemctl")
+        if not systemctl_path:
+            LOG.warning("systemctl not found; cannot restart %s", service)
+            return
+
+        try:
+            LOG.info("Restarting service %s after update", service)
+            subprocess.run([systemctl_path, "restart", service], check=True)
+            LOG.info("Service %s restarted successfully", service)
+        except subprocess.CalledProcessError as exc:
+            LOG.error("Failed to restart %s: %s", service, exc)
+            LOG.debug(traceback.format_exc())
 
 
 def create_and_start_updater():
