@@ -1,0 +1,9 @@
+# IXOPE Medical Device Dependencies
+# Pin versions for reproducible builds on ARM/Radxa
+
+opencv-python-headless==4.8.1.78
+Pillow==10.1.0
+flask==3.0.0
+numpy==1.26.2
+requests==2.31.0
+smbus2==0.4.3

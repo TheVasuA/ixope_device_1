@@ -1,0 +1,19 @@
+[Unit]
+Description=IXOPE Medical Device UI
+After=graphical.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=radxa
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/radxa/.Xauthority
+WorkingDirectory=/home/radxa/Documents/tk_ixope
+ExecStart=/usr/bin/python3 -m ixope.app
+Restart=on-failure
+RestartSec=3
+Nice=-10
+MemoryMax=256M
+
+[Install]
+WantedBy=graphical.target
