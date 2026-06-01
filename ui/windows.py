@@ -462,9 +462,15 @@ class SettingsWindow(BaseWindow):
         self._sym_mode = False
         self._keys = {}
         self._cs_items = []
+        # Country scrolling
+        self._country_scroll = 0
+        self._country_scroll_max = 0
+        self._filtered_countries = []
+        self._kb_visible = False  # country keyboard hidden until search tapped
         self._draw()
         self.cv.bind("<Button-1>", self._click)
         self.cv.bind("<B1-Motion>", self._drag)
+        self.cv.bind("<ButtonRelease-1>", self._ondrag_end)
 
     def _draw(self):
         if self._page == 'country':
@@ -596,69 +602,135 @@ class SettingsWindow(BaseWindow):
         else:
             self._shutdown_confirm_z = None
 
-    # ─── REGION sub-page: country search keyboard ─────────────────────
+    # ─── REGION sub-page: smooth scrollable country list with keyboard ──
     def _draw_country(self):
         """
-        Country selection sub-page.
-          • TOP    → search field + top 2 matches (frosted neutral pills)
-          • MIDDLE → keyboard
-          • BOTTOM → DONE / BACK action row
+        Improved country selection with smooth scrollable view.
+          • Keyboard hidden (default) → search field + 7 countries
+          • Keyboard shown (tap search) → search field + 3 countries + keyboard
+          • BACK button at the bottom
         """
         cx, c = self.CX, self.c
-        search = self._search
-
-        # Search field
-        sw = self._safe_width(78)
-        fx1 = cx - sw // 2 + 8
-        fx2 = cx + sw // 2 - 8
-        self.cv.create_rectangle(fx1, 64, fx2, 96,
-                                 fill=c['card_bg'],
-                                 outline=c['accent'], width=2, tags="c")
-        disp = search if search else "Type country name…"
-        sc = c['text'] if search else c['text_secondary']
-        self.cv.create_text(fx1 + 14, 80, text=disp[-26:], anchor='w',
-                            fill=sc, font=("Arial", 11), tags="c")
-
-        # Result rows — top 2 matches as iOS green active pills
+        search = self._search.lower() if self._search else ""
+        kb_visible = getattr(self, '_kb_visible', False)
+        
+        # Filter countries based on search
         countries = _SORTED_COUNTRIES
         if search:
-            countries = [n for n in countries
-                         if search.lower() in n.lower()]
-        cur_name = get_saved_country_name()
+            countries = [n for n in countries if search in n.lower()]
+        
+        # How many list rows are visible depends on keyboard state
+        visible_count = 3 if kb_visible else 7
+        
+        # Store filtered list for scrolling
+        self._filtered_countries = countries
+        self._country_scroll = getattr(self, '_country_scroll', 0)
+        self._country_scroll_max = max(0, len(countries) - visible_count)
+        
+        # ─── Search field (wide, but inset from the bezel) ────────────
+        sw = self._safe_width(self.CY)  # Use center Y for max width
+        fx1 = cx - sw // 2 + 34
+        fx2 = cx + sw // 2 - 34
+        field_y = 92          # below the REGION title (y=75)
+        field_h = 30
+        
+        # Search field background
+        self._smooth_card(fx1, field_y, fx2, field_y + field_h, 
+                         fill=c['card_bg'],
+                         border=(c['accent'], 2),
+                         radius=8)
+        
+        # Search text (inside the field, with padding)
+        if self._search:
+            disp = self._search[-24:]
+            sc = c['text']
+        else:
+            disp = "Tap to search..."
+            sc = c['text_secondary']
+        self.cv.create_text(fx1 + 14, field_y + field_h // 2, text=disp, anchor='w',
+                           fill=sc, font=("Arial", 10), tags="c")
+        
+        # Clear button (X) if there's text
+        if self._search:
+            clear_x = fx2 - 16
+            clear_y = field_y + field_h // 2
+            self.cv.create_text(clear_x, clear_y, text="✕", 
+                               fill=c['accent'], font=("Arial", 11, "bold"), tags="c")
+            self._clear_zone = (clear_x - 15, clear_y - 15, clear_x + 15, clear_y + 15)
+        else:
+            self._clear_zone = None
+        
+        # Whole search field is tappable to toggle the keyboard
+        self._search_zone = (fx1, field_y, fx2, field_y + field_h)
+        
+        # ─── Scrollable country list ──────────────────────────────────
+        list_top = field_y + field_h + 8
+        item_height = 32
+        list_bottom = list_top + (visible_count * item_height) + 4
+        
+        # List background
+        list_w = fx2 - fx1
+        self._smooth_card(fx1, list_top, fx2, list_bottom,
+                         fill=c['card_bg'],
+                         border=(c['card_border'], 1),
+                         radius=8)
+        
+        # Draw visible countries
         self._cs_items = []
-        for i, name in enumerate(countries[:2]):
-            y = 116 + i * 30
-            row_w = sw - 16
-            rx1 = cx - row_w // 2
-            rx2 = cx + row_w // 2
+        cur_name = get_saved_country_name()
+        
+        for i in range(visible_count):
+            idx = self._country_scroll + i
+            if idx >= len(countries):
+                break
+                
+            name = countries[idx]
+            y = list_top + (i * item_height) + item_height // 2 + 2
+            
+            # Highlight selected country
             is_active = (name == cur_name)
+            row_w = list_w - 12
             if is_active:
-                self._smooth_pill(cx, y, "", IOS_GREEN,
-                                  w=row_w, h=26, alpha=255)
-                txt_col = self._pill_text_color(IOS_GREEN)
+                self._smooth_pill(cx, y, "", self.c['accent'],
+                                 w=row_w, h=item_height - 4, alpha=255)
+                txt_col = self._pill_text_color(self.c['accent'])
             else:
                 ncol, nalpha = self._neutral_fill()
                 self._smooth_pill(cx, y, "", ncol,
-                                  w=row_w, h=26, alpha=nalpha)
+                                 w=row_w, h=item_height - 6, alpha=nalpha)
                 txt_col = c['text']
-            self.cv.create_text(cx, y, text=name, fill=txt_col,
-                                font=("Arial", 10, "bold"), tags="c")
-            self._cs_items.append((name, rx1, y - 13, rx2, y + 13))
-
-        # Separator
-        self.cv.create_line(fx1 + 16, 178, fx2 - 16, 178,
-                            fill=c['card_border'], width=1, tags="c")
-
-        # Keyboard
+            
+            # Country name
+            display_name = name if len(name) <= 20 else name[:19] + "…"
+            self.cv.create_text(cx, y, text=display_name, fill=txt_col,
+                               font=("Arial", 11, "bold"), tags="c")
+            
+            # Store hit zone
+            self._cs_items.append((name, cx - row_w//2, y - item_height//2 + 2, 
+                                  cx + row_w//2, y + item_height//2 - 2))
+        
+        # Scroll indicators
+        if self._country_scroll > 0:
+            self.cv.create_text(cx, list_top - 6, text="▲", 
+                               fill=c['text_secondary'], font=("Arial", 9), tags="c")
+        
+        if self._country_scroll < self._country_scroll_max:
+            self.cv.create_text(cx, list_bottom + 6, text="▼", 
+                               fill=c['text_secondary'], font=("Arial", 9), tags="c")
+        
+        # ─── Compact keyboard (only when focused) ─────────────────────
         self._keys = {}
-        self._draw_keyboard(start_y=184)
-
-        # DONE / BACK
-        ay = self.ACTION_Y + 6
-        self._glass_pill(cx - 64, ay, "DONE", w=110, h=34, active=True)
-        self._glass_pill(cx + 64, ay, "BACK", w=110, h=34)
-        self._cs_done_z = (cx - 119, ay - 17, cx - 9,  ay + 17)
-        self._cs_back_z = (cx + 9,   ay - 17, cx + 119, ay + 17)
+        if kb_visible:
+            kb_start = list_bottom + 14
+            self._draw_compact_keyboard(start_y=kb_start)
+        
+        # ─── BACK button at bottom ────────────────────────────────────
+        ay = self.ACTION_Y + 10
+        self._glass_pill(cx, ay, "BACK", w=90, h=30)
+        self._cs_back_z = (cx - 45, ay - 15, cx + 45, ay + 15)
+        
+        # Store list drag zone for scrolling
+        self._list_drag_zone = (fx1, list_top, fx2, list_bottom)
 
     # Reuse the same keyboard renderer that WifiWindow uses.
     # We import-by-method to avoid pulling the entire WifiWindow into the
@@ -668,6 +740,159 @@ class SettingsWindow(BaseWindow):
 
     def _kk(self, x, y, ch, w, h):
         WifiWindow._kk(self, x, y, ch, w, h)
+
+    def _draw_compact_keyboard(self, start_y=290):
+        """
+        Compact keyboard optimized for country search on 480x480 round display.
+        3 rows of QWERTY + action row (space + backspace).
+        """
+        cx = self.S // 2
+        R = 210  # Use larger radius so keys aren't clipped
+
+        # Keyboard layout
+        rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+
+        # Calculate dimensions to fit between start_y and action buttons
+        end_y = self.ACTION_Y - 6  # Leave room for BACK button
+        v_avail = end_y - start_y
+        total_rows = len(rows) + 1  # +1 for space/backspace row
+        row_h = max(26, min(34, v_avail // total_rows - 2))
+        gap = 2
+
+        self._keys = {}
+
+        for ri, row in enumerate(rows):
+            ky = start_y + ri * (row_h + gap) + row_h // 2
+            n = len(row)
+            # Calculate available width at this y position on the circle
+            dy = abs(ky - self.CY)
+            if dy >= R:
+                continue
+            chord_w = 2 * math.sqrt(R * R - dy * dy)
+            avail_w = chord_w - 16
+            # Let keys grow to fill the chord — utilizes the wide side space
+            kw = max(30, min(46, int((avail_w - (n - 1) * gap) / n)))
+            total_kw = n * kw + (n - 1) * gap
+            sx = cx - total_kw // 2
+
+            for ci, ch in enumerate(row):
+                kx = sx + ci * (kw + gap) + kw // 2
+                self._draw_compact_key(kx, ky, ch, kw, row_h - 2)
+
+        # Action row: space and backspace
+        ay = start_y + len(rows) * (row_h + gap) + row_h // 2
+        dy = abs(ay - self.CY)
+        if dy < R:
+            chord_w = 2 * math.sqrt(R * R - dy * dy)
+            avail_w = chord_w - 16
+            space_w = max(70, int(avail_w * 0.55))
+            back_w = min(50, int(avail_w * 0.25))
+            gap_small = 8
+            row_total = space_w + back_w + gap_small
+            sx = cx - row_total // 2
+            x = sx + space_w // 2
+            self._draw_compact_key(x, ay, " ", space_w, row_h - 2)
+            x += space_w // 2 + gap_small + back_w // 2
+            self._draw_compact_key(x, ay, "⌫", back_w, row_h - 2)
+
+    def _draw_compact_key(self, x, y, ch, w, h):
+        """Draw compact keyboard key with subtle styling."""
+        hw, hh = w // 2, h // 2
+        r = min(6, hh)  # Smaller radius
+
+        # Theme-aware colors
+        if self.mode == 'dark':
+            bg = "#3a3f55"
+            bd = "#5a607a"
+        else:
+            bg = "#e8ecf2"
+            bd = "#aab2c2"
+
+        txt_col = self.c['text']
+
+        # Rounded rectangle
+        self.cv.create_rectangle(x-hw+r, y-hh, x+hw-r, y+hh, fill=bg, outline="", tags="c")
+        self.cv.create_rectangle(x-hw, y-hh+r, x+hw, y+hh-r, fill=bg, outline="", tags="c")
+        self.cv.create_oval(x-hw, y-hh, x-hw+2*r, y-hh+2*r, fill=bg, outline="", tags="c")
+        self.cv.create_oval(x+hw-2*r, y-hh, x+hw, y-hh+2*r, fill=bg, outline="", tags="c")
+        self.cv.create_oval(x-hw, y+hh-2*r, x-hw+2*r, y+hh, fill=bg, outline="", tags="c")
+        self.cv.create_oval(x+hw-2*r, y+hh-2*r, x+hw, y+hh, fill=bg, outline="", tags="c")
+
+        # Subtle border
+        self.cv.create_line(x-hw+r, y-hh, x+hw-r, y-hh, fill=bd, tags="c")
+        self.cv.create_line(x-hw+r, y+hh, x+hw-r, y+hh, fill=bd, tags="c")
+
+        # Label
+        d = "␣" if ch == " " else ch
+        if len(d) == 1:
+            fs = max(14, min(20, int(w / 2.5)))   # single char keys — bigger
+        else:
+            fs = max(12, min(15, w // 4))         # space / backspace glyphs
+
+        self.cv.create_text(x, y, text=d, fill=txt_col,
+                           font=("Arial", fs, "bold"), tags="c")
+
+        # Store hit zone
+        self._keys[ch] = (x - hw, y - hh, x + hw, y + hh)
+
+    def _flash_key(self, x1, y1, x2, y2, ch):
+        """
+        Brief touch feedback around a tapped key:
+          • An accent-colored glow ring expands slightly beyond the key
+          • The key body lights up in the accent color with its label
+        After ~110ms the page is refreshed (which redraws the updated search
+        results + the key in its normal state).
+        """
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        w = x2 - x1
+        h = y2 - y1
+        r = min(8, h // 2)
+        accent = self.c['accent']
+
+        # ─── Glow ring around the key (drawn slightly larger) ─────────
+        pad = 5
+        gx1, gy1, gx2, gy2 = x1 - pad, y1 - pad, x2 + pad, y2 + pad
+        self.cv.create_rectangle(gx1 + r, gy1, gx2 - r, gy2,
+                                 fill=accent, outline="", tags="kf")
+        self.cv.create_rectangle(gx1, gy1 + r, gx2, gy2 - r,
+                                 fill=accent, outline="", tags="kf")
+        gr = r + pad
+        self.cv.create_oval(gx1, gy1, gx1 + 2*gr, gy1 + 2*gr, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(gx2 - 2*gr, gy1, gx2, gy1 + 2*gr, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(gx1, gy2 - 2*gr, gx1 + 2*gr, gy2, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(gx2 - 2*gr, gy2 - 2*gr, gx2, gy2, fill=accent, outline="", tags="kf")
+
+        # ─── Key body highlighted in accent ───────────────────────────
+        self.cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=accent, outline="", tags="kf")
+        self.cv.create_rectangle(x1, y1 + r, x2, y2 - r, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(x1, y1, x1 + 2*r, y1 + 2*r, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(x2 - 2*r, y1, x2, y1 + 2*r, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(x1, y2 - 2*r, x1 + 2*r, y2, fill=accent, outline="", tags="kf")
+        self.cv.create_oval(x2 - 2*r, y2 - 2*r, x2, y2, fill=accent, outline="", tags="kf")
+
+        # Pressed-key label (contrast color against the accent fill)
+        d = "␣" if ch == " " else ch
+        if len(d) == 1:
+            fs = max(14, min(20, int(w / 2.5)))
+        else:
+            fs = max(12, min(15, int(w) // 4))
+        self.cv.create_text(cx, cy, text=d,
+                            fill=self._pill_text_color(accent),
+                            font=("Arial", fs, "bold"), tags="kf")
+
+        # Clear the flash and redraw the page after a short delay
+        self.cv.after(110, self._after_key_flash)
+
+    def _after_key_flash(self):
+        """Remove key-flash overlay and redraw the country page."""
+        try:
+            self.cv.delete("kf")
+        except tk.TclError:
+            return
+        # Only refresh if still on the country page
+        if getattr(self, '_page', None) == 'country':
+            self._refresh()
 
     def _rddl(self):
         self.cv.delete("dl")
@@ -685,41 +910,73 @@ class SettingsWindow(BaseWindow):
 
         # ─── Country sub-page handling ────────────────────────────────
         if self._page == 'country':
-            # Result row tap
+            # Clear button tap
+            if hasattr(self, '_clear_zone') and self._clear_zone:
+                x1, y1, x2, y2 = self._clear_zone
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    self._search = ''
+                    self._country_scroll = 0
+                    self._refresh()
+                    return
+            
+            # Search field tap → show keyboard
+            if hasattr(self, '_search_zone'):
+                x1, y1, x2, y2 = self._search_zone
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    if not getattr(self, '_kb_visible', False):
+                        self._kb_visible = True
+                        self._country_scroll = 0
+                        self._refresh()
+                    return
+            
+            # Country list item tap
             for name, x1, y1, x2, y2 in self._cs_items:
                 if x1 <= x <= x2 and y1 <= y <= y2:
                     self._select_country(name)
                     return
-            # DONE — accept first match if any, else just go back
-            if hasattr(self, '_cs_done_z'):
-                x1, y1, x2, y2 = self._cs_done_z
+            
+            # List drag zone for scrolling (tap on empty area)
+            if hasattr(self, '_list_drag_zone'):
+                lx1, ly1, lx2, ly2 = self._list_drag_zone
+                if lx1 <= x <= lx2 and ly1 <= y <= ly2:
+                    # Tap in list area but not on item - check if tap is near top/bottom for scroll
+                    if y < ly1 + 30 and self._country_scroll > 0:
+                        # Tap near top - scroll up
+                        self._country_scroll = max(0, self._country_scroll - 1)
+                        self._refresh()
+                        return
+                    elif y > ly2 - 30 and self._country_scroll < self._country_scroll_max:
+                        # Tap near bottom - scroll down
+                        self._country_scroll = min(self._country_scroll_max, self._country_scroll + 1)
+                        self._refresh()
+                        return
+            
+            # BACK button — if keyboard open, close it first; else leave page
+            if hasattr(self, '_cs_back_z'):
+                x1, y1, x2, y2 = self._cs_back_z
                 if x1 <= x <= x2 and y1 <= y <= y2:
-                    matches = ([n for n in _SORTED_COUNTRIES
-                                if not self._search
-                                or self._search.lower() in n.lower()])
-                    if matches:
-                        self._select_country(matches[0])
+                    if getattr(self, '_kb_visible', False):
+                        self._kb_visible = False
+                        self._country_scroll = 0
+                        self._refresh()
                     else:
                         self._page = 'main'
                         self._refresh()
                     return
-            # BACK — go to main settings without changing anything
-            if hasattr(self, '_cs_back_z'):
-                x1, y1, x2, y2 = self._cs_back_z
-                if x1 <= x <= x2 and y1 <= y <= y2:
-                    self._page = 'main'
-                    self._refresh()
-                    return
-            # Keys
+            
+            # Keyboard keys
             for ch, (x1, y1, x2, y2) in self._keys.items():
                 if x1 <= x <= x2 and y1 <= y <= y2:
-                    if   ch == "⌫":     self._search = self._search[:-1]
-                    elif ch == "CAPS":  self._caps = not self._caps
-                    elif ch in ("!#+", "ABC"):
-                        self._sym_mode = not self._sym_mode
-                    elif ch == " ":     self._search += ' '
-                    else:               self._search += ch
-                    self._refresh()
+                    # Apply input immediately so fast typing never drops a key
+                    if ch == "⌫":     # Backspace
+                        self._search = self._search[:-1]
+                    elif ch == " ":   # Space
+                        self._search += ' '
+                    else:             # Regular key
+                        self._search += ch
+                    self._country_scroll = 0  # Reset scroll on edit
+                    # Show touch feedback, then redraw
+                    self._flash_key(x1, y1, x2, y2, ch)
                     return
             return
 
@@ -752,6 +1009,8 @@ class SettingsWindow(BaseWindow):
                     self._search = ''
                     self._caps = False
                     self._sym_mode = False
+                    self._kb_visible = False   # start without keyboard (7 countries)
+                    self._country_scroll = 0
                     self._refresh()
                 return
         for sid, (x1, y1, x2, y2) in self._schz.items():
@@ -772,14 +1031,40 @@ class SettingsWindow(BaseWindow):
         code = COUNTRIES.get(name, 'US')
         save_country(code)
         self._page = 'main'
+        self._country_scroll = 0  # Reset scroll when leaving country page
+        self._kb_visible = False  # Reset keyboard state for next visit
         self._refresh()
 
     def _drag(self, event):
-        if self._page == 'country':
-            return
         x, y = event.x, event.y
+        
+        if self._page == 'country':
+            # Handle drag scrolling in country list
+            if hasattr(self, '_list_drag_zone'):
+                lx1, ly1, lx2, ly2 = self._list_drag_zone
+                if lx1 <= x <= lx2 and ly1 <= y <= ly2:
+                    if not hasattr(self, '_drag_start_y'):
+                        self._drag_start_y = y
+                        self._drag_start_scroll = self._country_scroll
+                    else:
+                        # Calculate scroll based on drag distance
+                        drag_delta = self._drag_start_y - y
+                        # Each 10 pixels = 1 item scroll
+                        scroll_delta = drag_delta // 10
+                        new_scroll = self._drag_start_scroll + scroll_delta
+                        self._country_scroll = max(0, min(self._country_scroll_max, new_scroll))
+                        self._refresh()
+            return
+        
+        # Original delay slider handling
         if self._dly - 20 <= y <= self._dly + 20:
             self._setdl(x)
+    
+    def _ondrag_end(self, event):
+        """Clear drag state when drag ends."""
+        if hasattr(self, '_drag_start_y'):
+            delattr(self, '_drag_start_y')
+            delattr(self, '_drag_start_scroll')
 
     def _setdl(self, x):
         rel = max(0.0, min(1.0, (x - self._sx1) / max(1, self._sx2 - self._sx1)))
