@@ -17,6 +17,23 @@ import tkinter as tk
 from typing import Any
 from logging.handlers import RotatingFileHandler
 
+# ─── Allow running this file directly (e.g. Thonny "Run", `python app.py`) ──
+# app.py lives inside a package and uses relative imports (`from .config ...`).
+# Those only resolve when the file is loaded as part of a package. When it is
+# executed as a plain script there is no package context, so we re-launch it
+# as a proper module under its actual package (= its folder name, which may be
+# "ixope", "tk_ixope", etc.). This makes the app runnable regardless of how it
+# is started or what the project folder is called.
+if __name__ == "__main__" and not __package__:
+    import runpy
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _parent = os.path.dirname(_here)
+    _pkg = os.path.basename(_here)
+    if _parent not in sys.path:
+        sys.path.insert(0, _parent)
+    runpy.run_module(f"{_pkg}.app", run_name="__main__", alter_sys=True)
+    sys.exit(0)
+
 # Ensure the parent directory is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -67,11 +84,14 @@ class _ModulePreloader(threading.Thread):
     def run(self):
         try:
             import importlib
-            importlib.import_module("ixope.camera.camera_manager")
-            importlib.import_module("ixope.camera.recording")
-            importlib.import_module("ixope.hardware.led_controller")
-            importlib.import_module("ixope.network.ip_sender")
-            importlib.import_module("ixope.storage.file_manager")
+            # Use this module's actual package name (e.g. "ixope" / "tk_ixope")
+            # so preloading works regardless of the project folder name.
+            pkg = __package__ or "ixope"
+            importlib.import_module(f"{pkg}.camera.camera_manager")
+            importlib.import_module(f"{pkg}.camera.recording")
+            importlib.import_module(f"{pkg}.hardware.led_controller")
+            importlib.import_module(f"{pkg}.network.ip_sender")
+            importlib.import_module(f"{pkg}.storage.file_manager")
         except Exception as exc:
             self.error = exc
         finally:

@@ -8,7 +8,7 @@ Type=simple
 User=radxa
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/radxa/.Xauthority
-WorkingDirectory=/home/radxa/Documents/tk_ixope
+WorkingDirectory=/home/radxa/Documents/ixope
 ExecStart=/usr/bin/python3 -m ixope.app
 Restart=on-failure
 RestartSec=3

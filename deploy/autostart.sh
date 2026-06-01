@@ -22,5 +22,5 @@ unclutter -idle 0.1 -root &
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null
 
 # Start the application
-cd /home/radxa/Documents/tk_ixope
+cd /home/radxa/Documents/ixope
 exec python3 -m ixope.app

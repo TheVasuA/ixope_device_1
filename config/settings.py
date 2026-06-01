@@ -33,14 +33,14 @@ VIDEO_FPS = 30
 # BASE_PATH is the root for captured images, videos, logs, and config files.
 # Resolution order:
 #   1. IXOPE_BASE_PATH env var (lets you point at any folder for testing)
-#   2. /home/radxa/Documents/tk_ixope  — production target on the Radxa SBC
+#   2. /home/radxa/Documents/ixope  — production target on the Radxa SBC
 #   3. ~/ixope-data                    — fallback on any other machine
 #                                        (Windows / Linux dev box / macOS)
 def _resolve_base_path():
     env = os.environ.get("IXOPE_BASE_PATH")
     if env:
         return env
-    radxa = "/home/radxa/Documents/tk_ixope"
+    radxa = "/home/radxa/Documents/ixope"
     if os.path.isdir("/home/radxa"):
         return radxa
     return os.path.join(os.path.expanduser("~"), "ixope-data")
