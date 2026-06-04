@@ -42,19 +42,30 @@ class CameraManager:
 
     def _init_camera(self, camera_index):
         """Detect and initialize USB camera with optimal settings."""
+        import os
         print("\n=== USB Camera Detection ===")
-        video_devices = glob.glob('/dev/video*')
-        print(f"Available: {video_devices}")
+
+        # Platform-specific backend
+        if os.name == 'posix':
+            video_devices = glob.glob('/dev/video*')
+            print(f"Available: {video_devices}")
+            backend = cv2.CAP_V4L2
+        else:
+            # Windows: use DirectShow for webcam access
+            video_devices = ['(DirectShow)']
+            print(f"Available: {video_devices}")
+            backend = cv2.CAP_DSHOW
 
         indices = [camera_index] if camera_index is not None else range(settings.CAMERA_MAX_INDEX)
 
         for idx in indices:
-            cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+            cap = cv2.VideoCapture(idx, backend)
             if not cap.isOpened():
                 cap.release()
                 continue
 
-            # Force MJPG for hardware decode (much faster than YUYV)
+            # Force MJPG for hardware decode (much faster than YUYV on Linux;
+            # on Windows DirectShow may ignore this — that's fine)
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)

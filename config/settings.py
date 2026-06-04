@@ -30,19 +30,24 @@ VIDEO_CODECS = ['mp4v', 'avc1', 'X264', 'MJPG', 'XVID']
 VIDEO_FPS = 30
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-# BASE_PATH is the root for captured images, videos, logs, and config files.
-# Resolution order:
+# Two distinct locations, deliberately kept separate:
+#   • BASE_PATH  → WRITABLE RUNTIME DATA (captured images, videos, logs, config).
+#                  Must live OUTSIDE the code folder so the OTA updater's
+#                  `git reset --hard` can never wipe patient data.
+#   • REPO_ROOT  → the code / git checkout (used by the OTA updater).
+#
+# BASE_PATH resolution order:
 #   1. IXOPE_BASE_PATH env var (lets you point at any folder for testing)
-#   2. /home/radxa/Documents/ixope  — production target on the Radxa SBC
-#   3. ~/ixope-data                    — fallback on any other machine
-#                                        (Windows / Linux dev box / macOS)
+#   2. /home/radxa/ixope-data          — production data dir on the Radxa SBC
+#                                         (in $HOME → always user-writable)
+#   3. ~/ixope-data                     — fallback on any other machine
+#                                         (Windows / Linux dev box / macOS)
 def _resolve_base_path():
     env = os.environ.get("IXOPE_BASE_PATH")
     if env:
         return env
-    radxa = "/home/radxa/Documents/ixope"
     if os.path.isdir("/home/radxa"):
-        return radxa
+        return "/home/radxa/ixope-data"
     return os.path.join(os.path.expanduser("~"), "ixope-data")
 
 
@@ -51,6 +56,8 @@ ICON_PATH = os.path.join(BASE_PATH)
 IMAGE_BASE = os.path.join(BASE_PATH, "captured_images")
 VIDEO_BASE = os.path.join(BASE_PATH, "recorded_videos")
 
+# REPO_ROOT is the code checkout (the package directory that contains .git).
+# The OTA updater operates here, NOT on BASE_PATH.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEPLOY_PATH = os.path.join(REPO_ROOT, "deploy")
 BOOT_SPLASH_GIF = os.path.join(DEPLOY_PATH, "boot_logo.gif")
@@ -114,8 +121,10 @@ SYSTEMD_SERVICE_NAME = "ixope"
 #     their on-canvas coordinates are purely fallback values — kept on an
 #     inner ring r=100 for parity with the rest of the layout.
 ICON_SIZE = 56                # primary icons
-BATTERY_ICON_SIZE = 22        # battery status pip — small, top of screen
-BATTERY_ICON_SIZE_HIDDEN = 16 # even smaller when other icons are auto-hidden
+BATTERY_ICON_SIZE = 46        # battery status pip — large enough to show % inside
+BATTERY_ICON_SIZE_HIDDEN = 35 # enlarged when other icons auto-hide on idle
+BATTERY_OPACITY = 1.0         # battery opacity when the icon ring is visible
+BATTERY_OPACITY_HIDDEN = 0.5  # battery opacity when all icons are hidden (idle)
 
 _R_OUTER = 175                # outer ring (primary controls) — closer to bezel
 _R_INNER = 100                # inner ring (LED bulbs in the LED window)
@@ -154,22 +163,27 @@ ICON_POSITIONS = [
     _polar(_R_OUTER,   0),     # 13 battery          (12:00, rendered small)
 ]
 
-# Battery sits even higher than the ring so it reads as the system status pip
-# (not part of the control cluster). Override the polar position with a fixed
-# top-of-screen anchor.
-ICON_POSITIONS[13] = (_CX, 26)
+# Battery sits just below the scope / recording status text so the three
+# never overlap. It reads as the system status pip at the top-center.
+# (scope text ≈ y20, recording text ≈ y40, battery centered at y68.)
+ICON_POSITIONS[13] = (_CX, 68)
+
+# When the rest of the UI auto-hides on idle, the battery becomes the sole
+# status indicator: it grows (BATTERY_ICON_SIZE_HIDDEN) and moves up near the
+# top edge of the round display.
+BATTERY_POS_HIDDEN = (_CX, 44)
 
 # ─── Theme ────────────────────────────────────────────────────────────────────
 THEME_DARK = {
     'bg': '#000000',
-    'card_bg': '#1a1a2e',
-    'card_border': '#2a2a4a',
-    'text': '#ffffff',
-    'text_secondary': '#8888aa',
-    'accent': '#00c8ff',
-    'success': '#34c759',
-    'danger': '#ff3b30',
-    'warning': '#ff9500',
+    'card_bg': '#12121c',
+    'card_border': '#242438',
+    'text': '#f3f5fb',
+    'text_secondary': '#8e96a8',
+    'accent': '#0a84ff',
+    'success': '#30d158',
+    'danger': '#ff453a',
+    'warning': '#ff9f0a',
 }
 
 THEME_LIGHT = {
@@ -186,5 +200,6 @@ THEME_LIGHT = {
 
 # ─── Performance Tuning ──────────────────────────────────────────────────────
 GC_INTERVAL_FRAMES = 150  # Run gc.collect() every N frames
-UI_HIDE_DELAY_MS = 20000  # Icons visible for 20 seconds before auto-hide
+UI_HIDE_DELAY_MS = 7000  # Icons visible for 7 seconds before auto-hide
 TOUCH_DEBOUNCE_MS = 200  # Minimum ms between touch events
+BATTERY_POLL_FRAMES = 300  # Poll battery level every N frames (~10s at 30fps)

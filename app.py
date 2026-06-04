@@ -50,27 +50,40 @@ except:
 
 
 def _setup_logging():
-    """Configure rotating file logger for production."""
-    from .config import settings
-    log_dir = os.path.join(settings.BASE_PATH, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "ixope.log")
+    """Configure rotating file logger for production.
 
-    handler = RotatingFileHandler(log_file, maxBytes=2*1024*1024, backupCount=3)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    ))
+    The file handler is best-effort: if the data dir isn't writable (e.g. a
+    misconfigured/owned-by-root path) the app must still start, logging to
+    stdout only, instead of crashing at boot.
+    """
+    from .config import settings
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(handler)
 
-    # Also log to stdout for development
+    # Always log to stdout first so we have *some* output even if the file
+    # handler can't be created.
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
     stdout_handler.setLevel(logging.WARNING)
     root_logger.addHandler(stdout_handler)
+
+    log_dir = os.path.join(settings.BASE_PATH, "logs")
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "ixope.log")
+        handler = RotatingFileHandler(log_file, maxBytes=2*1024*1024, backupCount=3, encoding="utf-8")
+        handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        ))
+        root_logger.addHandler(handler)
+    except OSError as exc:
+        # Permission denied / read-only path — keep going with stdout logging.
+        root_logger.warning(
+            "File logging disabled (%s): %s. Logging to stdout only.",
+            log_dir, exc,
+        )
 
 
 class _ModulePreloader(threading.Thread):

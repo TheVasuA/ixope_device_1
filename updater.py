@@ -17,7 +17,10 @@ class Updater:
     """Simple Git-based OTA updater with rollback support."""
 
     def __init__(self):
-        self.repo_dir = settings.BASE_PATH
+        # The git checkout is the CODE folder (REPO_ROOT), never the writable
+        # data dir (BASE_PATH). Keeping them separate means `git reset --hard`
+        # during an update can't touch captured images / videos / config.
+        self.repo_dir = settings.REPO_ROOT
         self.remote = settings.GIT_REMOTE
         self.branch = settings.GIT_BRANCH
         self.interval = settings.UPDATE_CHECK_INTERVAL_MINUTES * 60

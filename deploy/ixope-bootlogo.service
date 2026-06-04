@@ -1,0 +1,24 @@
+[Unit]
+Description=IXOPE early boot logo (framebuffer)
+DefaultDependencies=no
+# Show the logo as early as possible. If your 480x480 panel needs a kernel
+# module to come up first, add an "After=" / "Requires=" for that module's
+# unit (or a udev settle) so the framebuffer exists before fbi draws.
+After=local-fs.target
+Before=display-manager.service getty@tty1.service
+
+[Service]
+Type=simple
+# -d /dev/fb0 : target framebuffer (change if your panel is fb1)
+# -T 1        : draw on virtual terminal 1
+# -noverbose  : no fbi status text
+# -a          : autoscale the image to the panel
+ExecStart=/usr/bin/fbi -d /dev/fb0 -T 1 -noverbose -a /home/radxa/Documents/ixope/deploy/boot_logo.gif
+# Keep the logo on screen until the app's own splash replaces it; the app
+# (or .xinitrc) kills fbi when the GUI starts.
+RemainAfterExit=yes
+StandardInput=tty
+StandardOutput=tty
+
+[Install]
+WantedBy=sysinit.target

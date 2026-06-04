@@ -28,6 +28,7 @@ from ..storage import FileManager
 from .icons import IconManager
 from .sliders import SliderManager, SLIDER_WIDTH, SLIDER_HEIGHT, SLIDER_START_X, SLIDER_BASE_Y, SLIDER_SPACING
 from .touch_events import hit_test_icon, in_zone, TouchDebouncer, FOCUS_INCREASE_ZONE, FOCUS_DECREASE_ZONE, RESTORE_ZONE
+from . import windows as _windows_mod  # access _windows_mod._SF_FONT by reference so late-init is visible
 
 
 class MedicalUI:
@@ -43,6 +44,13 @@ class MedicalUI:
         self.root.configure(bg="black")
         self.root.overrideredirect(True)
 
+        # Resolve SF Pro font now that Tk is running
+        if not _windows_mod._SF_FONT_RESOLVED:
+            _windows_mod._init_sf_font()
+
+        # Re-apply the saved Wi-Fi country regulatory domain on boot
+        _windows_mod.apply_saved_country()
+
         # ─── Disable GC during frame rendering ─────────────────────────────
         gc.disable()
         self._frame_counter = 0
@@ -57,12 +65,33 @@ class MedicalUI:
         self._sliders = SliderManager()
         self._touch = TouchDebouncer()
 
+        # ─── Load saved preferences ───────────────────────────────────────
+        from ..config.prefs import load as _load_prefs, save as _save_prefs
+        self._prefs = _load_prefs()
+        self._save_prefs = _save_prefs
+
         # ─── State ─────────────────────────────────────────────────────────
-        self.scope_selected = False
-        self.current_scope = None
+        # Restore last scope from prefs
+        last_scope = self._prefs.get('last_scope')
+        if last_scope and last_scope in settings.SCOPE_IMAGE_FOLDERS:
+            self.scope_selected = True
+            self.current_scope = last_scope
+        else:
+            self.scope_selected = False
+            self.current_scope = None
         self.ui_hidden = False
         self.bulbs_expanded = False
         self._bulb_indices = [5, 6, 7, 8, 11, 12]
+
+        # Restore camera slider values from prefs
+        cam = self._prefs.get('camera', {})
+        for k in ('zoom', 'brightness', 'contrast', 'exposure', 'sharpness'):
+            if k in cam:
+                self._sliders.values[k] = cam[k]
+
+        # Restore icon hide delay from prefs
+        delay_s = self._prefs.get('icon_hide_delay_s', 7)
+        settings.UI_HIDE_DELAY_MS = delay_s * 1000
 
         # Icon visibility (True = shown)
         self._icon_visible = [
@@ -90,6 +119,9 @@ class MedicalUI:
         # Auto-hide timer
         self._hide_timer = None
 
+        # Battery on-canvas position (toggled between normal + idle anchors)
+        self._battery_pos = settings.ICON_POSITIONS[13]
+
         # ─── Canvas ────────────────────────────────────────────────────────
         self.canvas = tk.Canvas(
             root, width=settings.WINDOW_WIDTH, height=settings.WINDOW_HEIGHT,
@@ -114,18 +146,18 @@ class MedicalUI:
 
         # Scope text item (hidden by default)
         self._scope_text = self.canvas.create_text(
-            settings.WINDOW_WIDTH // 2, 20, text="", fill="cyan", font=("Arial", 12, "bold")
+            settings.WINDOW_WIDTH // 2, 20, text="", fill="cyan", font=(_windows_mod._SF_FONT, 14, "bold")
         )
 
         # Recording indicator
         self._rec_text = self.canvas.create_text(
-            settings.WINDOW_WIDTH // 2, 40, text="", fill="red", font=("Arial", 10, "bold")
+            settings.WINDOW_WIDTH // 2, 40, text="", fill="red", font=(_windows_mod._SF_FONT, 12, "bold")
         )
 
         # Temp message text
         self._msg_text = self.canvas.create_text(
             settings.WINDOW_WIDTH // 2, settings.WINDOW_HEIGHT // 2,
-            text="", fill="white", font=("Arial", 14, "bold")
+            text="", fill="white", font=(_windows_mod._SF_FONT, 16, "bold")
         )
         self._msg_timer = None
 
@@ -152,6 +184,7 @@ class MedicalUI:
         self._start_flask()
 
         # ─── Begin render loop ────────────────────────────────────────────
+        self._poll_battery()  # show real battery % from the first frame
         self._reset_hide_timer()
         self._update_ui()
 
@@ -162,6 +195,10 @@ class MedicalUI:
     def _update_ui(self):
         """Main render loop. Optimized to minimize allocations."""
         self._frame_counter += 1
+
+        # Poll battery roughly every ~10s (cheap; reads a sysfs file once)
+        if self._frame_counter % settings.BATTERY_POLL_FRAMES == 0:
+            self._poll_battery()
 
         # Periodic GC (every ~5 seconds at 30fps)
         if self._frame_counter % settings.GC_INTERVAL_FRAMES == 0:
@@ -207,14 +244,14 @@ class MedicalUI:
         self._photo.paste(img)
 
         # Update recording indicator
-        if self._recorder.is_recording:
+        if self._recorder.is_recording and not getattr(self, '_window_open', False):
             elapsed = self._recorder.elapsed_seconds
             self.canvas.itemconfig(self._rec_text, text=f"● REC {elapsed}s")
         else:
             self.canvas.itemconfig(self._rec_text, text="")
 
-        # Update scope text
-        if self.scope_selected and self.current_scope:
+        # Update scope text — hidden when UI idle or a window is open
+        if self.scope_selected and self.current_scope and not self.ui_hidden and not getattr(self, '_window_open', False):
             self.canvas.itemconfig(self._scope_text, text=f"SCOPE: {self.current_scope.upper()}")
         else:
             self.canvas.itemconfig(self._scope_text, text="")
@@ -232,13 +269,17 @@ class MedicalUI:
 
     def _update_icons(self):
         """Update icon visibility. Only updates images when state changes."""
+        # When a sub-window is open, all icons stay hidden (no blending)
+        window_open = getattr(self, '_window_open', False)
+
         for i, item in enumerate(self._icon_items):
             if item is None:
                 continue
 
-            # Battery is the system status pip — keep it visible at all times,
-            # even when the rest of the UI is auto-hidden. Medical convention.
-            if i == 13:
+            if window_open:
+                should_show = False
+            elif i == 13:
+                # Battery is the system status pip — keep visible even on idle
                 should_show = self._icon_visible[i]
             else:
                 should_show = self._icon_visible[i] and not self.ui_hidden
@@ -253,13 +294,21 @@ class MedicalUI:
                 # Only update image for dynamic icons (recording + bulbs + battery)
                 if should_show:
                     if i == 13:
-                        # Battery shrinks further when the rest is auto-hidden
-                        if self.ui_hidden and self._icons.battery_mini_icon is not None:
-                            icon = self._icons.battery_mini_icon
+                        # On idle (UI hidden), the battery becomes the only
+                        # status pip: it grows and moves up to the very top.
+                        # When the UI is active it sits at its normal spot/size.
+                        if self.ui_hidden:
+                            icon = self._icons.get_battery_icon(big=True)
+                            target_pos = settings.BATTERY_POS_HIDDEN
                         else:
-                            icon = self._icons.get(13)
+                            icon = self._icons.get_battery_icon(big=False)
+                            target_pos = settings.ICON_POSITIONS[13]
                         if icon:
                             self.canvas.itemconfig(item, image=icon)
+                        # Reposition only when it actually changes
+                        if self._battery_pos != target_pos:
+                            self.canvas.coords(item, target_pos[0], target_pos[1])
+                            self._battery_pos = target_pos
                     elif i == 1 and self._recorder.is_recording:
                         rec_icon = self._icons.get_recording_icon()
                         if rec_icon:
@@ -298,7 +347,50 @@ class MedicalUI:
                 self.canvas.create_rectangle(SLIDER_START_X, y, SLIDER_START_X + fw, y + 10, fill="#FFF", outline="", tags="slider")
             hx = SLIDER_START_X + int(SLIDER_WIDTH * value)
             self.canvas.create_oval(hx - 8, y - 4, hx + 8, y + 14, fill="white", outline="#333", width=2, tags="slider")
-            self.canvas.create_text(SLIDER_START_X - 10, y + 5, text=labels[name], fill="white", font=("Arial", 9, "bold"), anchor="e", tags="slider")
+            self.canvas.create_text(SLIDER_START_X - 10, y + 5, text=labels[name], fill="white", font=(_windows_mod._SF_FONT, 11, "bold"), anchor="e", tags="slider")
+
+    def _poll_battery(self):
+        """Read the system battery level and update the icon if it changed.
+
+        Reads Linux sysfs (`/sys/class/power_supply/*/capacity`) which the
+        Radxa exposes when a fuel gauge / charger driver is present. On
+        machines without a battery this simply does nothing and the icon
+        keeps its last known value.
+        """
+        level = self._read_battery_capacity()
+        if level is not None and self._icons.set_battery_level(level):
+            # Force the on-canvas battery image to refresh next frame
+            item = self._icon_items[13] if len(self._icon_items) > 13 else None
+            if item is not None:
+                try:
+                    icon = self._icons.get_battery_icon(big=self.ui_hidden)
+                    if icon:
+                        self.canvas.itemconfig(item, image=icon)
+                except tk.TclError:
+                    pass
+
+    @staticmethod
+    def _read_battery_capacity():
+        """Return battery % (0-100) from sysfs, or None if unavailable."""
+        import glob
+        try:
+            for base in glob.glob("/sys/class/power_supply/*"):
+                cap_path = f"{base}/capacity"
+                type_path = f"{base}/type"
+                try:
+                    with open(type_path) as f:
+                        if f.read().strip().lower() != "battery":
+                            continue
+                except OSError:
+                    pass
+                try:
+                    with open(cap_path) as f:
+                        return int(f.read().strip())
+                except (OSError, ValueError):
+                    continue
+        except Exception:
+            pass
+        return None
 
     # ═══════════════════════════════════════════════════════════════════════
     # TOUCH / CLICK HANDLING
@@ -570,7 +662,13 @@ class MedicalUI:
         self._sliders.reset_all()
         self._focus_level = 128
         self._camera.set_autofocus(True)
+        self._save_camera_prefs()
         self._show_message("RESTORED", "white", duration=1000)
+
+    def _save_camera_prefs(self):
+        """Persist current slider values to prefs."""
+        self._prefs['camera'] = dict(self._sliders.values)
+        self._save_prefs(self._prefs)
 
     # ═══════════════════════════════════════════════════════════════════════
     # SCOPE MANAGEMENT
@@ -581,6 +679,9 @@ class MedicalUI:
         if scope_name in settings.SCOPE_IMAGE_FOLDERS:
             self.current_scope = scope_name
             self.scope_selected = True
+            # Persist the selection
+            self._prefs['last_scope'] = scope_name
+            self._save_prefs(self._prefs)
             return True
         return False
 
@@ -588,6 +689,8 @@ class MedicalUI:
         """Clear scope selection."""
         self.scope_selected = False
         self.current_scope = None
+        self._prefs['last_scope'] = None
+        self._save_prefs(self._prefs)
 
     # ═══════════════════════════════════════════════════════════════════════
     # UI HELPERS
@@ -626,14 +729,27 @@ class MedicalUI:
             if self._saved_visibility:
                 self._icon_visible = self._saved_visibility
             self.canvas.delete("slider")
+            # Persist slider positions when the user closes sliders
+            self._save_camera_prefs()
 
     # ═══════════════════════════════════════════════════════════════════════
     # WINDOW LAUNCHERS (lazy imports to save RAM)
     # ═══════════════════════════════════════════════════════════════════════
 
+    def _hide_all_icons(self):
+        """Immediately hide all icons + scope/rec text so they don't blend
+        with an overlay window that's about to open."""
+        self._window_open = True
+
+    def _show_all_icons(self):
+        """Restore icon visibility (called when a window closes)."""
+        self._window_open = False
+        self._reset_hide_timer()
+
     def _open_scope_window(self):
         """Open scope selection window."""
         from .windows import ScopeWindow
+        self._hide_all_icons()
         if not hasattr(self, '_scope_win') or not self._scope_win.is_open():
             self._scope_win = ScopeWindow(self.root, self)
         else:
@@ -642,6 +758,7 @@ class MedicalUI:
     def _open_led_window(self):
         """Open LED control list window."""
         from .windows import LEDWindow
+        self._hide_all_icons()
         if not hasattr(self, '_led_win') or not self._led_win.is_open():
             self._led_win = LEDWindow(self.root, self)
         else:
@@ -664,18 +781,21 @@ class MedicalUI:
     def _open_wifi_window(self):
         """Open WiFi settings window."""
         from .windows import WifiWindow
+        self._hide_all_icons()
         if not hasattr(self, '_wifi_win') or not self._wifi_win.is_open():
             self._wifi_win = WifiWindow(self.root, self)
 
     def _open_folder_window(self):
         """Open folder/gallery view."""
         from .windows import FolderWindow
+        self._hide_all_icons()
         if not hasattr(self, '_folder_win') or not self._folder_win.is_open():
             self._folder_win = FolderWindow(self.root, self)
 
     def _open_settings_window(self):
         """Open settings window."""
         from .windows import SettingsWindow
+        self._hide_all_icons()
         if not hasattr(self, '_settings_win') or not self._settings_win.is_open():
             self._settings_win = SettingsWindow(self.root, self)
 

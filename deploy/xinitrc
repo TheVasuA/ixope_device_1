@@ -1,0 +1,24 @@
+# IXOPE .xinitrc — minimal X session, no desktop environment.
+# Copy to /home/radxa/.xinitrc
+#
+# Launched by startx (see autologin setup in FASTBOOT.md). This is the
+# fastest possible path to a Tkinter GUI: bare X server → app, nothing else.
+
+# No screen blanking / power management on a medical kiosk
+xset s off
+xset -dpms
+xset s noblank
+
+# Hide the mouse cursor
+unclutter -idle 0.1 -root &
+
+# Performance CPU governor (ignored if not permitted)
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null
+
+# The early framebuffer logo (if running) is killed here so the app's own
+# boot splash takes over seamlessly.
+sudo pkill -x fbi 2>/dev/null
+
+# Launch the UI as the X session leader. When it exits, X exits.
+cd /home/radxa/Documents/ixope
+exec python3 -m ixope.app

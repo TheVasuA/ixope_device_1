@@ -15,50 +15,97 @@ Features:
 import math
 import json
 import os
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from PIL import ImageTk
 from ..config import settings
 
 
+# ─── Font loading (for battery percentage text) ─────────────────────────────
+_FONT_CACHE = {}
+
+
+def _load_font(px):
+    """Load a bold TrueType font at the given pixel size, with fallbacks.
+
+    Tries common Linux (DejaVu) and Windows (Arial) paths so the battery
+    percentage renders crisply on both the Radxa device and dev machines.
+    Falls back to PIL's bitmap default if none are found.
+    """
+    px = max(6, int(px))
+    if px in _FONT_CACHE:
+        return _FONT_CACHE[px]
+    candidates = [
+        # SF Pro — installed on the device under common Linux paths
+        "/usr/share/fonts/truetype/sfpro/SFProDisplay-Bold.otf",
+        "/usr/share/fonts/truetype/sfpro/SFProDisplay-Semibold.otf",
+        "/usr/share/fonts/truetype/sfpro/SFProText-Bold.otf",
+        "/usr/share/fonts/opentype/sfpro/SF-Pro-Display-Bold.otf",
+        "/usr/share/fonts/opentype/sfpro/SF-Pro-Text-Bold.otf",
+        "/usr/local/share/fonts/SFProDisplay-Bold.otf",
+        # Fallback: DejaVu (standard on all Debian/Ubuntu/Raspbian)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        # Windows dev machine
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "DejaVuSans-Bold.ttf",
+        "arial.ttf",
+    ]
+    font = None
+    for p in candidates:
+        try:
+            font = ImageFont.truetype(p, px)
+            break
+        except Exception:
+            continue
+    if font is None:
+        try:
+            font = ImageFont.load_default()
+        except Exception:
+            font = None
+    _FONT_CACHE[px] = font
+    return font
+
+
 SCHEMES = {
     'glass': {
-        # Soft frosted glass — NO hard ring, just a feathered halo
-        'bg_top':       (95, 105, 130, 105),     # cool steel blue, low alpha
-        'bg_bot':       (35, 42, 60, 130),
-        'rim':          (0, 0, 0, 0),            # disabled — no outline ring
-        'halo':         (140, 200, 255, 35),     # outer feather glow (cyan)
-        'highlight':    (255, 255, 255, 95),
-        'inner_shadow': (0, 0, 0, 45),
+        # iPhone 16 liquid glass — nearly invisible tinted shell with a soft
+        # specular highlight at the top. The icon "floats" over the live feed.
+        'bg_top':       (200, 220, 255, 28),     # faint blue-white tint
+        'bg_bot':       (120, 140, 180, 18),     # barely-there cool gradient
+        'rim':          (255, 255, 255, 30),     # whisper-thin white edge
+        'halo':         (200, 230, 255, 18),     # soft outer diffusion
+        'highlight':    (255, 255, 255, 70),     # top specular (the "liquid" cue)
+        'inner_shadow': (0, 0, 0, 12),           # subtle depth at the bottom
         'stroke':       (255, 255, 255),
         'stroke_width': 2,
-        'feather':      9,                       # Gaussian feather radius
+        'feather':      11,                      # wider blur = softer edge
     },
     'white': {
-        # Minimal — glyph + faint halo only, no glass body. Higher quality
-        # now: stroke is rendered at 3x with rounded caps, then drop shadow
-        # and a subtle glow so it doesn't look flat against the camera feed.
-        'bg_top':       (255, 255, 255, 14),     # ghost-thin glass film
-        'bg_bot':       (255, 255, 255, 6),
-        'rim':          (0, 0, 0, 0),
-        'halo':         (180, 220, 255, 24),     # whisper-soft halo
-        'highlight':    (255, 255, 255, 28),
+        # Pure minimal — almost no background, just the glyph with a faint
+        # halo glow so it reads against any camera content.
+        'bg_top':       (255, 255, 255, 6),
+        'bg_bot':       (255, 255, 255, 3),
+        'rim':          (255, 255, 255, 15),
+        'halo':         (255, 255, 255, 14),
+        'highlight':    (255, 255, 255, 18),
         'inner_shadow': (0, 0, 0, 0),
         'stroke':       (255, 255, 255),
         'stroke_width': 2,
-        'feather':      7,
+        'feather':      8,
     },
     'color': {
-        # Per-icon color scheme — body uses the icon's own tint, strokes
-        # match too. Renders with the same multi-layer glass treatment.
-        'bg_top':       (80, 90, 110, 105),
-        'bg_bot':       (30, 36, 50, 130),
-        'rim':          (0, 0, 0, 0),
-        'halo':         (140, 200, 255, 30),
-        'highlight':    (255, 255, 255, 90),
-        'inner_shadow': (0, 0, 0, 45),
+        # Tinted liquid glass — same translucent shell as 'glass' but the
+        # glyph renders in its icon-specific color instead of white.
+        'bg_top':       (180, 200, 240, 28),
+        'bg_bot':       (100, 120, 160, 18),
+        'rim':          (255, 255, 255, 25),
+        'halo':         (160, 200, 255, 16),
+        'highlight':    (255, 255, 255, 65),
+        'inner_shadow': (0, 0, 0, 10),
         'stroke':       (255, 255, 255),
         'stroke_width': 2,
-        'feather':      9,
+        'feather':      11,
     },
 }
 
@@ -115,99 +162,66 @@ def save_icon_scheme(scheme_name):
 
 def _make_glass_base(size, scheme, pressed=False):
     """
-    Render iOS 26 style liquid glass — NO HARD RING.
-      Layer 0 (pressed only): Outer cyan glow halo
-      Layer 1: Soft feathered halo edge (replaces hard rim)
-      Layer 2: Vertical gradient fill, feathered at the perimeter
-      Layer 3: Top crescent specular highlight
-      Layer 4: Bottom inner shadow (depth)
-      Layer 5 (pressed only): Inner secondary highlight
+    Render iOS 26 style liquid glass.
+
+    For the RESTING state the base is fully transparent — icons are just
+    their white/colored vector glyph floating over the live camera feed
+    with no dark background at all (iPhone 16 liquid-glass aesthetic).
+
+    For the PRESSED state (touch feedback) a bright cyan-filled circle
+    appears so the user sees clear tap feedback.
     """
     s = SCHEMES[scheme]
-    if s['bg_top'][3] == 0 and not pressed:
+
+    # Resting state: completely transparent base (no dark circle)
+    if not pressed:
         img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         return img, ImageDraw.Draw(img)
 
-    # Render at 2x for AA, then downscale
+    # ─── Pressed state: visible feedback ─────────────────────────────
     R = size * 2
     img = Image.new('RGBA', (R, R), (0, 0, 0, 0))
-    pad = 6  # extra padding so the halo can bleed without clipping
+    pad = 6
 
-    if pressed:
-        top_c, bot_c = PRESS_BG_TOP, PRESS_BG_BOT
-        highlight = PRESS_HIGHLIGHT
-        inner_shadow = (0, 30, 80, 30)
-        halo = (140, 220, 255, 90)
-        feather = 14
-    else:
-        top_c, bot_c = s['bg_top'], s['bg_bot']
-        highlight = s['highlight']
-        inner_shadow = s['inner_shadow']
-        halo = s['halo']
-        feather = s['feather']
+    # Outer cyan caustic glow
+    glow = Image.new('RGBA', (R, R), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse([pad - 4, pad - 4, R - pad + 4, R - pad + 4],
+               fill=PRESS_GLOW)
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=18))
+    img = Image.alpha_composite(img, glow)
 
-    # ─── Layer 0 (PRESSED): outer cyan caustic glow ──────────────────
-    if pressed:
-        glow = Image.new('RGBA', (R, R), (0, 0, 0, 0))
-        gd = ImageDraw.Draw(glow)
-        gd.ellipse([pad - 4, pad - 4, R - pad + 4, R - pad + 4],
-                   fill=PRESS_GLOW)
-        glow = glow.filter(ImageFilter.GaussianBlur(radius=18))
-        img = Image.alpha_composite(img, glow)
-
-    # ─── Layer 1: soft feathered halo edge (the visible outer boundary) ─
-    if halo[3] > 0:
-        h = Image.new('RGBA', (R, R), (0, 0, 0, 0))
-        hd = ImageDraw.Draw(h)
-        # Slightly larger than the body so it bleeds outward as a glow
-        hd.ellipse([pad - 2, pad - 2, R - pad + 2, R - pad + 2], fill=halo)
-        h = h.filter(ImageFilter.GaussianBlur(radius=feather))
-        img = Image.alpha_composite(img, h)
-
-    # ─── Layer 2: vertical gradient fill, feathered (no crisp edge) ──
+    # Body fill (bright cyan gradient)
     mask = Image.new('L', (R, R), 0)
     ImageDraw.Draw(mask).ellipse([pad, pad, R-pad, R-pad], fill=255)
-    # Feather the mask so the body fades into the halo (no hard ring!)
-    mask = mask.filter(ImageFilter.GaussianBlur(radius=max(2, feather // 3)))
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
 
     grad = Image.new('RGBA', (R, R), (0, 0, 0, 0))
     gd2 = ImageDraw.Draw(grad)
     for y in range(pad, R - pad):
         t = (y - pad) / max(1, (R - 2 * pad))
-        t = t * t * (3 - 2 * t)  # smoothstep
-        r = int(top_c[0] * (1-t) + bot_c[0] * t)
-        g = int(top_c[1] * (1-t) + bot_c[1] * t)
-        b = int(top_c[2] * (1-t) + bot_c[2] * t)
-        a = int(top_c[3] * (1-t) + bot_c[3] * t)
+        t = t * t * (3 - 2 * t)
+        r = int(PRESS_BG_TOP[0] * (1-t) + PRESS_BG_BOT[0] * t)
+        g = int(PRESS_BG_TOP[1] * (1-t) + PRESS_BG_BOT[1] * t)
+        b = int(PRESS_BG_TOP[2] * (1-t) + PRESS_BG_BOT[2] * t)
+        a = int(PRESS_BG_TOP[3] * (1-t) + PRESS_BG_BOT[3] * t)
         gd2.line([(pad, y), (R-pad, y)], fill=(r, g, b, a))
     grad.putalpha(mask)
     img = Image.alpha_composite(img, grad)
 
-    # ─── Layer 3: top crescent specular highlight ────────────────────
+    # Top specular highlight
     hl = Image.new('RGBA', (R, R), (0, 0, 0, 0))
     hd2 = ImageDraw.Draw(hl)
     hd2.ellipse([pad + 16, pad + 8, R - pad - 16, R // 2 - 4],
-                fill=highlight)
+                fill=PRESS_HIGHLIGHT)
     hl = hl.filter(ImageFilter.GaussianBlur(radius=4))
     img = Image.alpha_composite(img, hl)
 
-    # ─── Layer 4: bottom inner shadow (depth) ────────────────────────
-    sh = Image.new('RGBA', (R, R), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(sh)
-    sd.ellipse([pad + 12, R // 2 + 8, R - pad - 12, R - pad - 6],
-               fill=inner_shadow)
-    sh = sh.filter(ImageFilter.GaussianBlur(radius=6))
-    sh.putalpha(mask)
-    img = Image.alpha_composite(img, sh)
-
-    # ─── Layer 5 (PRESSED): inner secondary highlight (no ring) ──────
-    if pressed:
-        h2 = Image.new('RGBA', (R, R), (0, 0, 0, 0))
-        h2d = ImageDraw.Draw(h2)
-        h2d.ellipse([pad + 22, pad + 22, R - pad - 22, R - pad - 22],
-                    fill=(255, 255, 255, 60))
-        h2 = h2.filter(ImageFilter.GaussianBlur(radius=10))
-        img = Image.alpha_composite(img, h2)
+    # White rim
+    rim = Image.new('RGBA', (R, R), (0, 0, 0, 0))
+    ImageDraw.Draw(rim).ellipse([pad, pad, R-pad, R-pad],
+                                outline=PRESS_RIM, width=3)
+    img = Image.alpha_composite(img, rim)
 
     img = img.resize((size, size), Image.LANCZOS)
     return img, ImageDraw.Draw(img)
@@ -329,18 +343,74 @@ def _stroke_settings(d, R, c, w):
     d.ellipse([cx-8, cy-8, cx+8, cy+8], fill=c)
 
 
-def _stroke_battery(d, R, c, w):
+def _stroke_battery(d, R, c, w, level=None):
+    """
+    Horizontal battery glyph, fully contained within the RxR canvas.
+
+    Geometry is derived from R (= 2 × icon size) so the whole battery —
+    body + tip — always fits and never clips at the edges.
+
+    • `level` (0-100) controls the inner fill width. When None, defaults to
+      a representative 75% so the icon still looks "alive" before a real
+      reading is wired in.
+    • The percentage number is drawn centered inside the body.
+    """
     cx, cy = R // 2, R // 2
     w *= 2
-    bw, bh = 52, 24
-    x1, y1 = cx - bw//2, cy - bh//2
-    # Body
-    d.rounded_rectangle([x1, y1, x1+bw, y1+bh], radius=5, outline=c, width=w)
+    lvl = 75 if level is None else max(0, min(100, int(level)))
+
+    # Reserve room for the tip on the right; keep margins so nothing clips.
+    margin = max(6, R // 12)
+    tip_w = max(4, R // 16)
+    body_w = R - margin * 2 - tip_w
+    body_h = int(body_w * 0.46)
+    x1 = margin
+    y1 = cy - body_h // 2
+    x2 = x1 + body_w
+    y2 = y1 + body_h
+    rad = max(3, body_h // 4)
+
+    # Body outline
+    d.rounded_rectangle([x1, y1, x2, y2], radius=rad, outline=c, width=w)
     # Tip
-    d.rectangle([x1+bw, cy-4, x1+bw+6, cy+4], fill=c)
-    # 75% fill
-    fill_w = int((bw-10) * 0.75)
-    d.rectangle([x1+5, y1+5, x1+5+fill_w, y1+bh-5], fill=c)
+    tip_h = max(6, body_h // 3)
+    d.rounded_rectangle(
+        [x2 + 1, cy - tip_h // 2, x2 + tip_w, cy + tip_h // 2],
+        radius=max(1, tip_w // 3), fill=c,
+    )
+
+    # Inner fill — proportional to level, with a small inset from the outline
+    inset = w + max(2, R // 28)
+    fmax = (x2 - inset) - (x1 + inset)
+    fw = int(fmax * (lvl / 100.0))
+    if fw > 0:
+        # Low battery → red, otherwise use the stroke color
+        fill_col = (255, 69, 58) if lvl <= 20 else c
+        d.rounded_rectangle(
+            [x1 + inset, y1 + inset, x1 + inset + fw, y2 - inset],
+            radius=max(1, rad - inset // 2), fill=fill_col,
+        )
+
+    # Percentage text centered inside the body
+    txt = f"{lvl}"
+    font = _load_font(int(body_h * 0.62))
+    if font is not None:
+        try:
+            bbox = d.textbbox((0, 0), txt, font=font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            tx = cx - tw // 2 - bbox[0]
+            ty = cy - th // 2 - bbox[1]
+            # Choose a readable text color: dark over a bright fill that
+            # covers the center, else the stroke color.
+            covers_center = (x1 + inset + fw) >= cx
+            if covers_center and lvl > 20:
+                tcol = (15, 18, 26)
+            else:
+                tcol = c
+            d.text((tx, ty), txt, font=font, fill=tcol)
+        except Exception:
+            pass
 
 
 def _stroke_bulb(d, R, c, w, color, is_on):
@@ -473,10 +543,19 @@ def _icon_settings(size, scheme, color, pressed=False):
     return _compose(size, scheme, lambda d, R: _stroke_settings(d, R, c, w), pressed)
 
 
-def _icon_battery(size, scheme, color, pressed=False):
+def _icon_battery(size, scheme, color, pressed=False, level=None, opacity=1.0):
     c = _stroke_color(scheme, color, pressed)
     w = SCHEMES[scheme]['stroke_width']
-    return _compose(size, scheme, lambda d, R: _stroke_battery(d, R, c, w), pressed)
+    img = _compose(size, scheme,
+                   lambda d, R: _stroke_battery(d, R, c, w, level=level),
+                   pressed)
+    if opacity < 1.0:
+        # Scale the whole icon's alpha channel so it reads as translucent
+        # against the live camera feed (status pip, not a control).
+        img = img.convert("RGBA")
+        alpha = img.split()[-1].point(lambda a: int(a * opacity))
+        img.putalpha(alpha)
+    return img
 
 
 def _icon_bulb(size, scheme, color, is_on=False, pressed=False):
@@ -515,6 +594,9 @@ class IconManager:
         self.video_rec_icon = None
         self.battery_mini_icon = None  # tiny variant when UI is auto-hidden
         self.ripple_frames = []   # PhotoImage list (animated ripple)
+        self._battery_level = 75  # current battery % (updated at runtime)
+        self._battery_cache = {}
+        self._battery_big_cache = {}
         self._generate_all()
 
     def _make_ripple_frames(self, base_size):
@@ -633,18 +715,32 @@ class IconManager:
         # Two sizes are stored:
         #   • normal   — when the rest of the icon ring is visible
         #   • mini     — when the rest is auto-hidden (further reduced)
-        battery_size = getattr(settings, 'BATTERY_ICON_SIZE', 22)
-        battery_mini = getattr(settings, 'BATTERY_ICON_SIZE_HIDDEN', 16)
+        battery_size = getattr(settings, 'BATTERY_ICON_SIZE', 46)
+        battery_big = getattr(settings, 'BATTERY_ICON_SIZE_HIDDEN', 60)
+        self._battery_size = battery_size
+        self._battery_big = battery_big
+        self._battery_color = ICON_COLORS.get(13) if s == 'color' else None
+        # Opacity is state-dependent: full when the icon ring is visible,
+        # reduced (translucent status pip) when all icons are hidden on idle.
+        self._battery_opacity = getattr(settings, 'BATTERY_OPACITY', 1.0)
+        self._battery_opacity_hidden = getattr(settings, 'BATTERY_OPACITY_HIDDEN', 0.5)
+        self._battery_cache = {}     # level -> PhotoImage (normal size, full opacity)
+        self._battery_big_cache = {}  # level -> PhotoImage (idle size, reduced opacity)
         try:
-            bat_color = ICON_COLORS.get(13) if s == 'color' else None
-            bat_img = _icon_battery(battery_size, s, bat_color)
+            bat_color = self._battery_color
+            op = self._battery_opacity
+            bat_img = _icon_battery(battery_size, s, bat_color,
+                                    level=self._battery_level, opacity=op)
             self.icons[13] = ImageTk.PhotoImage(bat_img)
             bat_pressed = _icon_battery(int(battery_size * 1.08), s,
-                                        bat_color, pressed=True)
+                                        bat_color, pressed=True,
+                                        level=self._battery_level, opacity=op)
             self.icons_pressed[13] = ImageTk.PhotoImage(bat_pressed)
-            # Tiny variant for auto-hide state
-            bat_mini_img = _icon_battery(battery_mini, s, bat_color)
-            self.battery_mini_icon = ImageTk.PhotoImage(bat_mini_img)
+            # Enlarged + translucent variant for the idle/auto-hide state
+            bat_big_img = _icon_battery(battery_big, s, bat_color,
+                                        level=self._battery_level,
+                                        opacity=self._battery_opacity_hidden)
+            self.battery_mini_icon = ImageTk.PhotoImage(bat_big_img)
         except Exception:
             self.battery_mini_icon = None
 
@@ -668,6 +764,9 @@ class IconManager:
             self._old_rec = self.video_rec_icon
             self.scheme = scheme_name
             save_icon_scheme(scheme_name)
+            # Battery glyphs are color/scheme dependent — drop cached levels
+            self._battery_cache = {}
+            self._battery_big_cache = {}
             self._generate_all()
 
     def get(self, index, is_on=False, pressed=False):
@@ -682,6 +781,47 @@ class IconManager:
 
     def get_recording_icon(self):
         return self.video_rec_icon
+
+    def set_battery_level(self, level):
+        """Update the battery percentage. Returns True if the level changed
+        (so the caller knows whether to refresh the on-canvas icon)."""
+        try:
+            lvl = max(0, min(100, int(level)))
+        except (TypeError, ValueError):
+            return False
+        if lvl == self._battery_level:
+            return False
+        self._battery_level = lvl
+        # Refresh the primary battery icon used by the normal-state ring
+        try:
+            img = _icon_battery(self._battery_size, self.scheme,
+                                self._battery_color, level=lvl,
+                                opacity=self._battery_opacity)
+            self.icons[13] = ImageTk.PhotoImage(img)
+        except Exception:
+            pass
+        return True
+
+    def get_battery_icon(self, big=False):
+        """Return a battery PhotoImage for the current level (cached per level).
+
+        `big=True` returns the enlarged, translucent status-pip variant shown
+        when the rest of the UI is auto-hidden on idle. The visible-state icon
+        uses full opacity; the idle variant uses the reduced opacity.
+        """
+        lvl = self._battery_level
+        cache = self._battery_big_cache if big else self._battery_cache
+        if lvl not in cache:
+            size = self._battery_big if big else self._battery_size
+            op = self._battery_opacity_hidden if big else self._battery_opacity
+            try:
+                img = _icon_battery(size, self.scheme,
+                                    self._battery_color, level=lvl,
+                                    opacity=op)
+                cache[lvl] = ImageTk.PhotoImage(img)
+            except Exception:
+                return self.battery_mini_icon if big else self.get(13)
+        return cache[lvl]
 
     def get_ripple_frame(self, frame_index):
         """Return the i-th ripple animation frame (clamped)."""

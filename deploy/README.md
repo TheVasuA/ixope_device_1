@@ -138,7 +138,9 @@ sudo systemctl restart ixope
 
 ```bash
 sudo journalctl -u ixope -n 200
-cat logs/ixope.log
+# Runtime data (logs, captured images, videos, config) lives OUTSIDE the
+# code folder so OTA updates can't wipe it:
+cat ~/ixope-data/logs/ixope.log
 ```
 
 ## Recommended next steps for production

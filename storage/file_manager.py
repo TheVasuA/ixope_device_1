@@ -153,6 +153,7 @@ class FileManager:
                         images.append({
                             'filename': f,
                             'path': f'/image/{scope_name}/{f}',
+                            'dir': folder,
                             'scope': scope_name,
                             'size': os.path.getsize(path),
                             'created': datetime.fromtimestamp(os.path.getctime(path)).isoformat()
@@ -192,6 +193,10 @@ class FileManager:
                     videos.append({
                         'filename': f,
                         'path': f'/video/{f}',
+                        # Real on-disk folder so the gallery can open it back
+                        # regardless of which scope subfolder it actually lives
+                        # in (scope may be unknown when listing 'all').
+                        'dir': folder,
                         'scope': scope_name or '',
                         'size': os.path.getsize(path),
                         'created': datetime.fromtimestamp(os.path.getctime(path)).isoformat()
