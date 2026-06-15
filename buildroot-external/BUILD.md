@@ -1,213 +1,192 @@
-# IXOPE Buildroot Image — Build & Install Guide
+# IXOPE Buildroot Image — Complete Build & Flash Guide
 
 ## Overview
 
-This builds a minimal Linux image for the Radxa Zero 3W that boots directly
-to the IXOPE medical camera application in ~5 seconds (eMMC) / ~7 seconds (SD).
+Builds a minimal Linux image for the Radxa Zero 3W that boots directly
+to the IXOPE medical camera application in **~5 seconds** (eMMC) / **~7 seconds** (SD).
 
 **What's included:** Linux kernel + Python 3 + OpenCV + Pillow + Flask + Tkinter +
 X11 (minimal) + WiFi (NetworkManager) + I2C tools + your IXOPE app. Nothing else.
 
-**What's NOT included:** No desktop, no systemd, no apt, no snap, no bloat.
+---
+
+## You need TWO machines
+
+1. **Build machine** — Linux PC (Ubuntu 22.04+) or WSL2 on Windows. Compiles the image.
+2. **Radxa Zero 3W** — the target device where you flash the image.
 
 ---
 
-## Requirements (build machine)
-
-- **Linux** (Ubuntu 22.04+ or similar) — NOT Windows. Use WSL2 if needed.
-- ~15 GB free disk space
-- ~4 GB RAM minimum
-- Internet connection (downloads toolchain + packages on first build)
+## Step 1: Install build tools (one-time, on build machine)
 
 ```bash
-# Install build dependencies (Ubuntu/Debian)
 sudo apt update
 sudo apt install -y \
-    build-essential gcc g++ make \
-    git wget curl unzip bc \
-    libncurses-dev flex bison \
-    libssl-dev libelf-dev \
-    python3 python3-dev \
-    file cpio rsync
+    build-essential gcc g++ make git wget curl unzip bc \
+    libncurses-dev flex bison libssl-dev libelf-dev \
+    python3 python3-dev file cpio rsync dosfstools mtools \
+    device-tree-compiler u-boot-tools
 ```
 
 ---
 
-## Step 1: Clone Buildroot
+## Step 2: Clone Buildroot + your code
 
 ```bash
 cd ~
 git clone https://github.com/buildroot/buildroot.git
+git clone https://github.com/TheVasuA/ixope_device_1.git ixope
+
 cd buildroot
-git checkout 2024.02   # stable release
+git checkout 2024.02
 ```
 
 ---
 
-## Step 2: Point to the IXOPE external tree
+## Step 3: Set the external tree path
 
 ```bash
-# Assuming your ixope repo is at ~/ixope
 export BR2_EXTERNAL=~/ixope/buildroot-external
 ```
 
 ---
 
-## Step 3: Load the IXOPE defconfig
+## Step 4: Load the IXOPE config
 
 ```bash
 make ixope_rk3566_defconfig
 ```
 
-This configures Buildroot with:
-- RK3566 (Radxa Zero 3W) target
-- Minimal rootfs (~100MB)
-- Python 3 + all your dependencies
-- Your IXOPE app installed at `/opt/ixope`
-- BusyBox init (no systemd) for fast boot
-- X11 minimal (for Tkinter)
-- WiFi (NetworkManager + wpa_supplicant)
-
 ---
 
-## Step 4: (Optional) Customize
-
-```bash
-make menuconfig        # general settings
-make linux-menuconfig  # kernel config (add/remove drivers)
-```
-
-**Important kernel options to verify:**
-- `CONFIG_VIDEO_V4L2=y` (camera)
-- `CONFIG_I2C_RK3X=y` (I2C for your Arduino LED controller)
-- `CONFIG_SERIAL_8250=y` (UART)
-- `CONFIG_DRM_ROCKCHIP=y` (display)
-- `CONFIG_BRCMFMAC=y` (WiFi built-in, not module)
-
----
-
-## Step 5: Build
+## Step 5: Build the image
 
 ```bash
 make -j$(nproc)
 ```
 
-**First build: ~45-90 minutes** (downloads + compiles everything)
-**Subsequent builds: ~5-10 minutes** (only rebuilds changed parts)
+**First build: ~45-90 minutes** (downloads toolchain + all packages).
+**Subsequent builds: ~5-10 minutes** (only rebuilds changes).
 
-Output files:
+Output files at `~/buildroot/output/images/`:
 ```
-output/images/
-├── rootfs.ext4          # Root filesystem
-├── Image                # Linux kernel
-├── rk3566-radxa-zero-3w.dtb  # Device tree
-└── u-boot-rockchip.bin  # Bootloader
-```
-
----
-
-## Step 6: Create the SD card / eMMC image
-
-```bash
-# Buildroot may generate sdcard.img automatically. If not:
-cd output/images
-
-# Create a partitioned image:
-#   Partition 1: U-Boot (raw, offset 64 sectors)
-#   Partition 2: rootfs (ext4, ~256MB)
-#   Partition 3: data (ext4, remaining space — for captured images/videos)
-
-# Simple approach — use genimage (Buildroot can do this automatically)
-# Or manually:
-dd if=/dev/zero of=ixope-image.img bs=1M count=512
-# Write U-Boot at sector 64:
-dd if=u-boot-rockchip.bin of=ixope-image.img seek=64 conv=notrunc
-# Create partitions with fdisk/sfdisk, then write rootfs.ext4 to partition 2
-```
-
-For a cleaner approach, add this to the defconfig:
-```
-BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/post-image.sh"
+├── Image                       (Linux kernel)
+├── rootfs.ext4                 (root filesystem)
+├── u-boot-rockchip.bin         (bootloader)
+└── rk3566-radxa-zero-3w.dtb    (device tree)
 ```
 
 ---
 
-## Step 7: Flash to the device
+## Step 6: Flash to the device
 
-### Option A: Flash to SD card
+### Option A: Flash to SD card (easiest to start)
 
 ```bash
-# Find your SD card device (e.g., /dev/sdb)
+# Insert SD card into your build machine
+# Find the device name:
 lsblk
+# Example: /dev/sdb (NEVER use /dev/sda — that's your PC!)
 
-# Flash the image
-sudo dd if=output/images/ixope-image.img of=/dev/sdX bs=4M status=progress
+# Clear existing partition table
+sudo dd if=/dev/zero of=/dev/sdX bs=1M count=1
+sudo parted /dev/sdX mklabel gpt
+
+# Write U-Boot (raw, at sector 64 = 32KB offset)
+sudo dd if=output/images/u-boot-rockchip.bin of=/dev/sdX seek=64 conv=notrunc
+
+# Create rootfs partition (16MB to 272MB)
+sudo parted /dev/sdX mkpart rootfs ext4 16MiB 272MiB
+
+# Create data partition (272MB to end of card)
+sudo parted /dev/sdX mkpart data ext4 272MiB 100%
+
+# Write rootfs to partition 2
+sudo dd if=output/images/rootfs.ext4 of=/dev/sdX2 bs=4M status=progress
+
+# Format data partition
+sudo mkfs.ext4 -L ixope-data /dev/sdX3
+
 sync
 ```
 
-Insert the SD card into the Radxa Zero 3W and power on.
+Eject SD card → insert into Radxa → power on.
 
-### Option B: Flash to eMMC (recommended for fast boot)
+### Option B: Flash to eMMC (faster boot — recommended)
 
-1. Put the Radxa in **Maskrom mode** (hold the boot button while powering on)
-2. Use `rkdeveloptool` to flash:
+1. **Enter Maskrom mode on the Radxa:**
+   - Hold the **BOOT button** on the board
+   - Connect USB-C cable to your PC while holding the button
+   - Release after 3 seconds
+   - The device appears as a USB Rockchip device
 
+2. **Install flash tools:**
 ```bash
-# Install rkdeveloptool
-sudo apt install rkdeveloptool
+sudo apt install -y rkdeveloptool
+```
 
-# Flash U-Boot
-rkdeveloptool db rk3566_ddr_1056MHz_v1.18.bin
-rkdeveloptool wl 64 u-boot-rockchip.bin
+3. **Download the DDR init blob:**
+```bash
+wget https://dl.radxa.com/rock3/images/loader/rk356x_spl_loader_ddr1056_v1.12.109.bin
+```
 
-# Flash rootfs
-rkdeveloptool wl 32768 rootfs.ext4
+4. **Flash:**
+```bash
+# Check device is detected
+rkdeveloptool ld
 
-# Reboot
+# Initialize DDR
+rkdeveloptool db rk356x_spl_loader_ddr1056_v1.12.109.bin
+
+# Flash U-Boot (at sector 64)
+rkdeveloptool wl 64 output/images/u-boot-rockchip.bin
+
+# Flash rootfs (at sector 32768 = 16MB offset)
+rkdeveloptool wl 32768 output/images/rootfs.ext4
+
+# Reboot the device
 rkdeveloptool rd
 ```
 
-Or use **Radxa's rkdevtool** (GUI) on Windows to flash the image.
+---
+
+## Step 7: First boot
+
+Power on the Radxa. Expected boot sequence:
+
+```
+0.0s  Power on
+0.5s  U-Boot loads kernel
+2.0s  Kernel boots (quiet, built-in drivers)
+2.5s  BusyBox init starts
+3.0s  X server starts
+4.0s  Python loads the app
+5.0s  Camera feed visible on screen
+```
 
 ---
 
-## Step 8: First boot
+## Step 8: Connect via SSH (for debugging/updates)
 
-Power on. You should see:
-
-```
-0.0s  Power LED on
-0.5s  U-Boot logo (if configured)
-2.0s  Kernel booting (quiet, no console text)
-4.0s  X server starts
-5.0s  IXOPE splash visible, camera starting
-```
-
----
-
-## Post-install: WiFi setup
-
-SSH is available via `dropbear` (no password for root by default).
-Connect via USB serial or Ethernet first, then:
+The image includes `dropbear` SSH server (no password by default).
 
 ```bash
-# Connect to WiFi
-nmcli dev wifi connect "YourSSID" password "YourPassword"
-
-# Or use the app's built-in WiFi settings (tap the WiFi icon)
+# Find device IP (from the app's WiFi page, or from your router)
+ssh root@<device-ip>
 ```
 
 ---
 
-## Updating the app (without reflashing)
+## Updating the app after first flash
 
-The app lives at `/opt/ixope`. You can update it over SSH:
+You do NOT need to rebuild the whole image to update the app code:
 
 ```bash
-# From your dev machine:
-scp -r ixope/* root@<device-ip>:/opt/ixope/
+# From your dev machine — push code over SSH:
+scp -r ~/ixope/* root@<device-ip>:/opt/ixope/
 
 # Or use git on the device:
+ssh root@<device-ip>
 cd /opt/ixope
 git pull origin main
 
@@ -215,52 +194,93 @@ git pull origin main
 /etc/init.d/S99ixope restart
 ```
 
-For production: mount `/opt/ixope` on a separate read-write partition
-so the read-only rootfs stays clean.
+---
+
+## WiFi setup (first time)
+
+After boot, use the app's WiFi icon to scan and connect. Or via SSH:
+
+```bash
+nmcli dev wifi connect "YourSSID" password "YourPassword"
+```
 
 ---
 
 ## Data partition
 
-Captured images, videos, logs, and preferences are stored on a separate
-data partition mounted at `/var/ixope-data`. This partition is:
-- **Read-write** (survives rootfs updates)
-- **Separate** from the code (OTA can't wipe patient data)
-- Created automatically on first boot
+All runtime data is stored separately from the code:
+
+| Path | Content |
+|------|---------|
+| `/opt/ixope/` | App code (read-only in production) |
+| `/var/ixope-data/logs/` | Application logs |
+| `/var/ixope-data/captured_images/` | Patient images |
+| `/var/ixope-data/recorded_videos/` | Recorded videos |
+| `/var/ixope-data/prefs.json` | User preferences |
+
+The data partition survives app updates and rootfs reflashes.
+
+---
+
+## (Optional) Customize the build
+
+```bash
+# General settings (packages, init system, etc.)
+make menuconfig
+
+# Kernel config (add/remove hardware drivers)
+make linux-menuconfig
+
+# Save your changes back to the defconfig:
+make savedefconfig
+cp output/defconfig ~/ixope/buildroot-external/configs/ixope_rk3566_defconfig
+```
+
+**Important kernel options to verify:**
+- `CONFIG_VIDEO_V4L2=y` — USB camera
+- `CONFIG_I2C_RK3X=y` — I2C for LED controller
+- `CONFIG_SERIAL_8250=y` — UART
+- `CONFIG_DRM_ROCKCHIP=y` — Display output
+- `CONFIG_BRCMFMAC=y` — WiFi (built-in, not module)
 
 ---
 
 ## Troubleshooting
 
-### No display output
-- Check kernel DTS matches your display panel
-- Verify `CONFIG_DRM_ROCKCHIP=y` in kernel config
-- Check `/var/ixope-data/logs/boot.log`
-
-### No camera
-- Verify `CONFIG_VIDEO_V4L2=y` and `CONFIG_VIDEO_USB_GSPCA=y`
-- Check `ls /dev/video*` after boot
-
-### WiFi not working
-- Verify firmware: `BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XXX=y`
-- Check `nmcli dev status`
-
-### App crashes
-- Check logs: `cat /var/ixope-data/logs/boot.log`
-- Test manually: `DISPLAY=:0 python3 -m ixope.app`
+| Symptom | Fix |
+|---------|-----|
+| No display output | Verify DTS name matches your board: `rk3566-radxa-zero-3w` |
+| No camera | Check `ls /dev/video*` — add V4L2 to kernel if missing |
+| No WiFi | Verify firmware: `BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XXX=y` |
+| App crashes | Check `/var/ixope-data/logs/boot.log` |
+| Black screen | Connect USB serial (115200 baud) to see boot messages |
+| Kernel panic | Wrong DTS or missing rootfs — check U-Boot env |
 
 ---
 
-## Boot time optimization checklist
+## Boot time optimization (after first working image)
 
-After the first working image, further reduce boot time:
+- [ ] Use **eMMC** instead of SD card (saves 2-3s)
+- [ ] Build WiFi driver **into** kernel (not as module)
+- [ ] Switch to **squashfs** rootfs (read-only, faster mount)
+- [ ] Add **U-Boot splash** BMP for instant logo at 0.5s
+- [ ] Remove dropbear/htop from production builds
+- [ ] Add `initcall_blacklist=` for unused kernel drivers
 
-- [ ] Build WiFi driver into kernel (not module): saves ~0.5s
-- [ ] Use squashfs rootfs (read-only, faster mount): saves ~0.3s
-- [ ] Remove htop/dropbear from production image
-- [ ] Add kernel `initcall_blacklist=` for unused drivers
-- [ ] Use eMMC instead of SD card: saves 2-3s
-- [ ] Add U-Boot splash BMP for instant logo
+---
+
+## TL;DR — 6 commands from zero to image
+
+```bash
+sudo apt install -y build-essential git wget libncurses-dev flex bison libssl-dev python3 file cpio rsync
+cd ~ && git clone https://github.com/buildroot/buildroot.git && git clone https://github.com/TheVasuA/ixope_device_1.git ixope
+cd buildroot && git checkout 2024.02
+export BR2_EXTERNAL=~/ixope/buildroot-external
+make ixope_rk3566_defconfig
+make -j$(nproc)
+```
+
+Then flash `output/images/*` to SD card or eMMC using the steps above.
 
 ---
 
@@ -268,19 +288,18 @@ After the first working image, further reduce boot time:
 
 ```
 buildroot-external/
-├── BUILD.md              ← this file
-├── external.desc         ← Buildroot external tree descriptor
-├── external.mk           ← package include
-├── Config.in             ← package menu entries
+├── BUILD.md                          ← this file
+├── external.desc                     ← Buildroot external tree descriptor
+├── external.mk                       ← package includes
+├── Config.in                         ← package menu entries
 ├── configs/
-│   └── ixope_rk3566_defconfig   ← main build config
+│   └── ixope_rk3566_defconfig        ← main build configuration
 ├── board/ixope/
-│   └── post-build.sh    ← rootfs customization script
+│   └── post-build.sh                 ← rootfs customization script
 ├── package/ixope-app/
-│   ├── Config.in         ← package description
-│   └── ixope-app.mk     ← build/install recipe
+│   ├── Config.in                     ← package description
+│   └── ixope-app.mk                  ← build/install recipe
 └── rootfs-overlay/
-    └── etc/
-        └── init.d/
-            └── S99ixope  ← app startup script
+    └── etc/init.d/
+        └── S99ixope                  ← app startup script (runs on boot)
 ```
