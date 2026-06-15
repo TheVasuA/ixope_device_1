@@ -1,0 +1,9 @@
+config BR2_PACKAGE_IXOPE_APP
+	bool "ixope-app"
+	depends on BR2_PACKAGE_PYTHON3
+	depends on BR2_PACKAGE_PYTHON_PILLOW
+	depends on BR2_PACKAGE_OPENCV4
+	help
+	  IXOPE Medical Device Application - Fullscreen camera UI
+	  for 480x480 round display with LED control, recording,
+	  and Wi-Fi management.

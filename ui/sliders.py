@@ -26,12 +26,18 @@ class SliderManager:
         }
         self._labels = {
             'zoom': 'Zoom',
-            'sharpness': 'Sharp',
-            'exposure': 'Exp',
-            'brightness': 'Bright',
+            'sharpness': 'Sharpness',
+            'exposure': 'Exposure',
+            'brightness': 'Brightness',
             'contrast': 'Contrast',
         }
-        self._order = ['zoom', 'sharpness', 'exposure', 'brightness', 'contrast']
+        # Slider order for the camera settings page (4 sliders, no zoom)
+        self._order = ['brightness', 'contrast', 'exposure', 'sharpness']
+        # Layout constants for the new centered design
+        self._slider_w = 260
+        self._start_x = (settings.WINDOW_WIDTH // 2) - 260 // 2
+        self._base_y = 140
+        self._spacing = 54
 
     def toggle(self):
         """Toggle slider visibility."""
@@ -53,15 +59,16 @@ class SliderManager:
     def handle_drag(self, x, y):
         """
         Handle drag event. Returns True if a slider was adjusted.
+        Uses the centered layout constants.
         """
         if not self.visible:
             return False
 
         for row, name in enumerate(self._order):
-            slider_y = SLIDER_BASE_Y + row * SLIDER_SPACING
-            if (SLIDER_START_X - 20 <= x <= SLIDER_START_X + SLIDER_WIDTH + 20 and
-                    slider_y - 15 <= y <= slider_y + SLIDER_HEIGHT + 15):
-                rel = max(0.0, min(1.0, (x - SLIDER_START_X) / SLIDER_WIDTH))
+            slider_y = self._base_y + row * self._spacing
+            if (self._start_x - 20 <= x <= self._start_x + self._slider_w + 20 and
+                    slider_y - 20 <= y <= slider_y + 20):
+                rel = max(0.0, min(1.0, (x - self._start_x) / self._slider_w))
                 self.values[name] = rel
                 return True
 

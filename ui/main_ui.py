@@ -144,14 +144,26 @@ class MedicalUI:
             settings.WINDOW_WIDTH // 2, settings.WINDOW_HEIGHT // 2, image=self._photo
         )
 
-        # Scope text item (hidden by default)
+        # Scope text items — outlined for visibility over any camera content
+        # Dark shadow drawn in 4 directions + 4 diagonals, then bright text on top
+        scope_y = 20
+        scope_font = ("Arial", 14, "bold")
+        self._scope_outline_items = []
+        for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,-1),(-1,1),(1,1)]:
+            item = self.canvas.create_text(
+                settings.WINDOW_WIDTH // 2 + dx, scope_y + dy,
+                text="", fill="black", font=scope_font
+            )
+            self._scope_outline_items.append(item)
         self._scope_text = self.canvas.create_text(
-            settings.WINDOW_WIDTH // 2, 20, text="", fill="cyan", font=(_windows_mod._SF_FONT, 14, "bold")
+            settings.WINDOW_WIDTH // 2, scope_y, text="", fill="#00ffcc", font=scope_font
         )
 
-        # Recording indicator
+        # Recording indicator — placed at the bottom of the screen to avoid
+        # merging with the battery/scope indicators at the top
         self._rec_text = self.canvas.create_text(
-            settings.WINDOW_WIDTH // 2, 40, text="", fill="red", font=(_windows_mod._SF_FONT, 12, "bold")
+            settings.WINDOW_WIDTH // 2, settings.WINDOW_HEIGHT - 30,
+            text="", fill="red", font=("Arial", 12, "bold")
         )
 
         # Temp message text
@@ -252,9 +264,14 @@ class MedicalUI:
 
         # Update scope text — hidden when UI idle or a window is open
         if self.scope_selected and self.current_scope and not self.ui_hidden and not getattr(self, '_window_open', False):
-            self.canvas.itemconfig(self._scope_text, text=f"SCOPE: {self.current_scope.upper()}")
+            scope_str = f"SCOPE: {self.current_scope.upper()}"
+            self.canvas.itemconfig(self._scope_text, text=scope_str)
+            for item in self._scope_outline_items:
+                self.canvas.itemconfig(item, text=scope_str)
         else:
             self.canvas.itemconfig(self._scope_text, text="")
+            for item in self._scope_outline_items:
+                self.canvas.itemconfig(item, text="")
 
         # Draw sliders (only when visible)
         if self._sliders.visible:
@@ -330,24 +347,158 @@ class MedicalUI:
                     self._icon_items[i] = self.canvas.create_image(x, y, image=icon, state="normal")
 
     def _draw_sliders(self):
-        """Draw sliders with tag for efficient removal."""
+        """Draw camera color-correction sliders as anti-aliased PIL images
+        for high-quality smooth rendering (no jagged Tkinter canvas shapes)."""
         if not self._sliders.visible:
             return
+        from PIL import Image, ImageDraw, ImageFilter
+
         vals = self._sliders.values
-        order = ['zoom', 'sharpness', 'exposure', 'brightness', 'contrast']
-        labels = {'zoom': 'Zoom', 'sharpness': 'Sharp', 'exposure': 'Exp', 'brightness': 'Bright', 'contrast': 'Contrast'}
+        order = ['brightness', 'contrast', 'exposure', 'sharpness']
+        labels = {'brightness': 'Brightness', 'contrast': 'Contrast',
+                  'exposure': 'Exposure', 'sharpness': 'Sharpness'}
+
+        W = settings.WINDOW_WIDTH
+        H = settings.WINDOW_HEIGHT
+        cx = W // 2
+        slider_w = 260
+        start_x = cx - slider_w // 2
+        base_y = 140
+        spacing = 54
+
+        # Render the entire slider overlay as a single anti-aliased image
+        # at 2x resolution then downscale (supersampling AA)
+        scale = 2
+        img = Image.new("RGBA", (W * scale, H * scale), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        # Title
+        try:
+            from PIL import ImageFont
+            title_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
+            label_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
+            pct_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 20)
+            btn_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
+        except Exception:
+            try:
+                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+                label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+                pct_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+                btn_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+            except Exception:
+                title_font = label_font = pct_font = btn_font = None
+
+        # Title text with outline
+        title_y = (base_y - 30) * scale
+        if title_font:
+            bbox = d.textbbox((0, 0), "Camera Settings", font=title_font)
+            tw = bbox[2] - bbox[0]
+            tx = cx * scale - tw // 2
+            ty = title_y - 14
+            # Dark outline
+            for ox, oy in [(-2,0),(2,0),(0,-2),(0,2),(-2,-2),(2,-2),(-2,2),(2,2)]:
+                d.text((tx + ox, ty + oy), "Camera Settings",
+                       fill=(0, 0, 0, 200), font=title_font)
+            d.text((tx, ty), "Camera Settings",
+                   fill=(255, 220, 60, 255), font=title_font)
+
+        # Colors — use bright yellow-green for labels (visible on any camera content)
+        # with dark outline for contrast
+        label_col = (255, 220, 60, 255)      # warm yellow — never lost in the feed
+        pct_col = (0, 200, 255, 255)         # cyan for percentages
+        accent = (0, 200, 255, 255)
+        track_bg = (58, 63, 85, 220)
+        white = (255, 255, 255, 255)
+        outline_col = (0, 0, 0, 200)         # dark outline for text stroke
+        track_h = 10 * scale
+        handle_r = 14 * scale
 
         for row, name in enumerate(order):
-            y = SLIDER_BASE_Y + row * SLIDER_SPACING
+            y = (base_y + row * spacing) * scale
             value = vals[name]
+            sx = start_x * scale
+            sw = slider_w * scale
 
-            self.canvas.create_rectangle(SLIDER_START_X, y, SLIDER_START_X + SLIDER_WIDTH, y + 10, fill="#333", outline="#555", tags="slider")
-            fw = int(SLIDER_WIDTH * value)
-            if fw > 0:
-                self.canvas.create_rectangle(SLIDER_START_X, y, SLIDER_START_X + fw, y + 10, fill="#FFF", outline="", tags="slider")
-            hx = SLIDER_START_X + int(SLIDER_WIDTH * value)
-            self.canvas.create_oval(hx - 8, y - 4, hx + 8, y + 14, fill="white", outline="#333", width=2, tags="slider")
-            self.canvas.create_text(SLIDER_START_X - 10, y + 5, text=labels[name], fill="white", font=(_windows_mod._SF_FONT, 11, "bold"), anchor="e", tags="slider")
+            # Label with dark outline (drawn 4x offset for stroke effect)
+            label_y = y - 44  # more gap above the track
+            if label_font:
+                for ox, oy in [(-2,0),(2,0),(0,-2),(0,2),(-2,-2),(2,-2),(-2,2),(2,2)]:
+                    d.text((sx + ox, label_y + oy), labels[name], fill=outline_col, font=label_font)
+                d.text((sx, label_y), labels[name], fill=label_col, font=label_font)
+
+                pct_text = f"{int(value * 100)}%"
+                bbox = d.textbbox((0, 0), pct_text, font=pct_font)
+                pw = bbox[2] - bbox[0]
+                for ox, oy in [(-2,0),(2,0),(0,-2),(0,2)]:
+                    d.text((sx + sw - pw + ox, label_y + oy), pct_text, fill=outline_col, font=pct_font)
+                d.text((sx + sw - pw, label_y), pct_text, fill=pct_col, font=pct_font)
+
+            # Track background (rounded pill)
+            tr_y = y
+            d.rounded_rectangle([sx, tr_y - track_h//2, sx + sw, tr_y + track_h//2],
+                               radius=track_h//2, fill=track_bg)
+
+            # Filled portion
+            fw = int(sw * value)
+            if fw > track_h:
+                d.rounded_rectangle([sx, tr_y - track_h//2, sx + fw, tr_y + track_h//2],
+                                   radius=track_h//2, fill=accent)
+
+            # Handle shadow
+            hx = sx + int(sw * value)
+            d.ellipse([hx - handle_r + 2, tr_y - handle_r + 3,
+                      hx + handle_r + 2, tr_y + handle_r + 3],
+                     fill=(10, 10, 20, 120))
+            # Handle body
+            d.ellipse([hx - handle_r, tr_y - handle_r,
+                      hx + handle_r, tr_y + handle_r],
+                     fill=white, outline=accent, width=5)
+            # Handle inner dot
+            dot_r = 6
+            d.ellipse([hx - dot_r, tr_y - dot_r, hx + dot_r, tr_y + dot_r],
+                     fill=accent)
+
+        # ─── Buttons ─────────────────────────────────────────────────
+        btn_y = (base_y + len(order) * spacing + 20) * scale
+        btn_w = 110 * scale
+        btn_h = 34 * scale
+        gap = 12 * scale
+        btn_r = btn_h // 2
+
+        # DEFAULTS (left)
+        dx = cx * scale - gap // 2 - btn_w // 2
+        d.rounded_rectangle([dx - btn_w//2, btn_y - btn_h//2,
+                            dx + btn_w//2, btn_y + btn_h//2],
+                           radius=btn_r, fill=track_bg, outline=(90, 96, 122, 255), width=3)
+        if btn_font:
+            bbox = d.textbbox((0, 0), "DEFAULTS", font=btn_font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            d.text((dx - tw//2, btn_y - th//2 - bbox[1]), "DEFAULTS", fill=white, font=btn_font)
+
+        # SAVE (right)
+        sx_btn = cx * scale + gap // 2 + btn_w // 2
+        d.rounded_rectangle([sx_btn - btn_w//2, btn_y - btn_h//2,
+                            sx_btn + btn_w//2, btn_y + btn_h//2],
+                           radius=btn_r, fill=accent)
+        if btn_font:
+            bbox = d.textbbox((0, 0), "SAVE", font=btn_font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            d.text((sx_btn - tw//2, btn_y - th//2 - bbox[1]), "SAVE",
+                   fill=(10, 10, 20, 255), font=btn_font)
+
+        # Downscale 2x → 1x with LANCZOS (smooth AA)
+        img = img.resize((W, H), Image.LANCZOS)
+        self._slider_photo = ImageTk.PhotoImage(img)
+        self.canvas.create_image(cx, H // 2, image=self._slider_photo, tags="slider")
+
+        # Store button hit zones (at 1x coordinates)
+        btn_y_1x = base_y + len(order) * spacing + 20
+        dx_1x = cx - (12 // 2 + 110 // 2)
+        sx_1x = cx + (12 // 2 + 110 // 2)
+        self._slider_defaults_z = (dx_1x - 55, btn_y_1x - 17, dx_1x + 55, btn_y_1x + 17)
+        self._slider_save_z = (sx_1x - 55, btn_y_1x - 17, sx_1x + 55, btn_y_1x + 17)
 
     def _poll_battery(self):
         """Read the system battery level and update the icon if it changed.
@@ -412,6 +563,26 @@ class MedicalUI:
         if self._sliders.visible and self._sliders.handle_drag(x, y):
             self._reset_hide_timer()
             return
+
+        # Check DEFAULTS / SAVE buttons when sliders are visible
+        if self._sliders.visible:
+            if hasattr(self, '_slider_defaults_z'):
+                x1, y1, x2, y2 = self._slider_defaults_z
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    # Reset all to neutral (0.5 for brightness/contrast/exposure, 0 for sharpness)
+                    self._sliders.values['brightness'] = 0.5
+                    self._sliders.values['contrast'] = 0.5
+                    self._sliders.values['exposure'] = 0.5
+                    self._sliders.values['sharpness'] = 0.0
+                    self._show_message("DEFAULTS", "white", duration=800)
+                    return
+            if hasattr(self, '_slider_save_z'):
+                x1, y1, x2, y2 = self._slider_save_z
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    self._save_camera_prefs()
+                    self._toggle_sliders()  # close sliders after save
+                    self._show_message("SAVED ✓", "green", duration=1000)
+                    return
 
         # Check focus zones (invisible)
         if in_zone(x, y, FOCUS_INCREASE_ZONE):

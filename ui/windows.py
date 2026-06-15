@@ -692,44 +692,44 @@ class SettingsWindow(BaseWindow):
     def _draw_main(self):
         cx, c = self.CX, self.c
 
-        # Section labels
-        section_lbl  = c['text_secondary']
+        # Section labels — uses theme text color (white in dark, dark in light)
+        section_lbl  = c['text']
         section_font = (_SF_FONT, 11, "bold")
         track_color  = "#3a3f55" if self.mode == 'dark' else "#c8ccd8"
 
-        # ── Tighter spacing now that we have 4 sections instead of 3 ──
-        sec_h = 50
-        top   = self.CONTENT_TOP - 2
+        # ── 5 sections, tighter spacing ──
+        sec_h = 44
+        top   = self.CONTENT_TOP - 4
 
         # ─── Section 1: THEME ─────────────────────────────────────────
         s1y = top + 4
         self.cv.create_text(cx, s1y, text="THEME",
                             fill=section_lbl, font=section_font, tags="c")
-        ty = s1y + 22
+        ty = s1y + 20
         self._glass_pill(cx - 56, ty, "DARK",
-                         w=98, h=28, active=(self.mode == 'dark'))
+                         w=98, h=26, active=(self.mode == 'dark'))
         self._glass_pill(cx + 56, ty, "LIGHT",
-                         w=98, h=28, active=(self.mode == 'light'))
+                         w=98, h=26, active=(self.mode == 'light'))
 
         # ─── Section 2: ICON STYLE ────────────────────────────────────
         s2y = top + sec_h + 2
         self.cv.create_text(cx, s2y, text="ICON STYLE",
                             fill=section_lbl, font=section_font, tags="c")
-        isy = s2y + 22
+        isy = s2y + 20
         self._schz = {}
         for i, (sid, lbl) in enumerate([('glass', 'GLASS'),
                                         ('white', 'WHITE'),
                                         ('color', 'COLOR')]):
             sx = cx - 84 + i * 84
-            self._glass_pill(sx, isy, lbl, w=78, h=26,
+            self._glass_pill(sx, isy, lbl, w=78, h=24,
                              active=(sid == self._isch))
-            self._schz[sid] = (sx - 39, isy - 13, sx + 39, isy + 13)
+            self._schz[sid] = (sx - 39, isy - 12, sx + 39, isy + 12)
 
         # ─── Section 3: ICON HIDE DELAY ───────────────────────────────
         s3y = top + sec_h * 2 + 2
         self.cv.create_text(cx, s3y, text="ICON HIDE DELAY",
                             fill=section_lbl, font=section_font, tags="c")
-        self._dly = s3y + 22
+        self._dly = s3y + 20
         sw = self._safe_width(self._dly)
         self._sx1 = cx - sw // 2 + 30
         self._sx2 = cx + sw // 2 - 30
@@ -737,18 +737,22 @@ class SettingsWindow(BaseWindow):
                             fill=track_color, width=5, capstyle="round", tags="c")
         self._rddl()
 
-        # ─── Section 4: REGION (country selection) ────────────────────
-        s4y = top + sec_h * 3 + 20
+        # ─── Section 4: REGION ────────────────────────────────────────
+        s4y = top + sec_h * 3 + 6
         self.cv.create_text(cx, s4y, text="REGION",
                             fill=section_lbl, font=section_font, tags="c")
-        ry = s4y + 28
-        # Show current country as a tappable pill that opens the sub-page
+        ry = s4y + 22
         country_name = get_saved_country_name() or "Not set"
-        # Trim long names so the pill never overflows
         display = country_name if len(country_name) <= 18 else country_name[:17] + "…"
-        self._glass_pill(cx, ry, display, w=200, h=30,
+        self._glass_pill(cx, ry, display, w=200, h=28,
                          active=False,
-                         font=(_SF_FONT, 13, "bold"))
+                         font=(_SF_FONT, 12, "bold"))
+
+        # ─── Section 5: CAMERA (color correction) ─────────────────────
+        s5y = top + sec_h * 4 + 36
+        self._glass_pill(cx, s5y, "CAMERA SETTINGS", w=200, h=30,
+                         active=True,
+                         font=(_SF_FONT, 12, "bold"))
 
         # ─── Action row: RESET / SHUTDOWN / EXIT ──────────────────────
         ay = self.ACTION_Y + 4
@@ -764,7 +768,8 @@ class SettingsWindow(BaseWindow):
         self._zones = {
             'dark':     (cx - 110, ty - 14, cx - 6,   ty + 14),
             'light':    (cx + 6,   ty - 14, cx + 110, ty + 14),
-            'region':   (cx - 100, ry - 15, cx + 100, ry + 15),
+            'region':   (cx - 100, ry - 14, cx + 100, ry + 14),
+            'camera':   (cx - 100, s5y - 15, cx + 100, s5y + 15),
             'reset':    (cx - (pill_w + gap) - pill_w // 2, ay - 17,
                          cx - (pill_w + gap) + pill_w // 2, ay + 17),
             'shutdown': (cx - pill_w // 2, ay - 17, cx + pill_w // 2, ay + 17),
@@ -880,7 +885,7 @@ class SettingsWindow(BaseWindow):
                     self._smooth_pill(cx, y, '', ncol, w=row_w, h=row_h, alpha=nalpha, tag='c')
                     txt_col = c['text']
                 dn = name if len(name) <= 22 else name[:21] + '...'
-                self.cv.create_text(cx, y, text=dn, fill=txt_col, font=('Arial', 12, 'bold'), tags='c')
+                self.cv.create_text(cx, y, text=dn, fill=txt_col, font=('Arial', 15, 'bold'), tags='c')
                 self._cs_items.append((name, cx - row_w//2, int(y) - row_h//2, cx + row_w//2, int(y) + row_h//2))
 
         # Scroll indicators
@@ -909,10 +914,12 @@ class SettingsWindow(BaseWindow):
         fx = self._sx1 + int((self._sx2 - self._sx1) * rel)
         self.cv.create_line(self._sx1, self._dly, fx, self._dly,
                             fill=self.c['warning'], width=6, capstyle="round", tags="dl")
-        self.cv.create_oval(fx - 11, self._dly - 11, fx + 11, self._dly + 11,
-                            fill="white", outline=self.c['warning'], width=2, tags="dl")
-        self.cv.create_text(self.CX, self._dly + 22, text=f"{self._delay}s",
-                            fill=self.c['text'], font=(_SF_FONT, 12, "bold"), tags="dl")
+        # Larger handle circle
+        self.cv.create_oval(fx - 14, self._dly - 14, fx + 14, self._dly + 14,
+                            fill="white", outline=self.c['warning'], width=3, tags="dl")
+        # Seconds text inside the handle (no overlap with REGION below)
+        self.cv.create_text(fx, self._dly, text=f"{self._delay}",
+                            fill=self.c['warning'], font=(_SF_FONT, 10, "bold"), tags="dl")
 
     def _click(self, event):
         x, y = event.x, event.y
@@ -1003,6 +1010,12 @@ class SettingsWindow(BaseWindow):
                     return
                 elif n == 'exit':     self.close()
                 elif n == 'reset':    self._reset_defaults()
+                elif n == 'camera':
+                    # Close settings and open camera sliders on the live feed
+                    self.close()
+                    if self.main_app and hasattr(self.main_app, '_toggle_sliders'):
+                        self.main_app._toggle_sliders()
+                    return
                 elif n == 'region':
                     self._page = 'country'
                     self._search = ''
@@ -1047,8 +1060,8 @@ class SettingsWindow(BaseWindow):
                         self._drag_start_y = y
                         self._drag_start_scroll_y = getattr(self, '_country_scroll_y', 0.0)
                     else:
-                        # 1:1 mapping → smooth, predictable scrolling
-                        drag_delta = self._drag_start_y - y
+                        # 2x scroll speed for fast navigation through 170+ countries
+                        drag_delta = (self._drag_start_y - y) * 2
                         new_scroll = self._drag_start_scroll_y + drag_delta
                         new_scroll = max(0.0, min(getattr(self, '_country_scroll_max', 0.0), new_scroll))
                         # Any real movement cancels a pending row-tap
@@ -1178,7 +1191,12 @@ class WifiWindow(BaseWindow):
         # happy.)
         if not self._has_saved_country():
             self._save_country('US')
-        self._draw_scan()
+        # If already connected to WiFi, show the connected page so the user
+        # can disconnect. Otherwise start scanning for networks.
+        if self._is_wifi_connected():
+            self._draw_devices()
+        else:
+            self._draw_scan()
         self.cv.bind("<Button-1>", self._click)
         self.cv.bind("<B1-Motion>", self._ondrag)
         self.cv.bind("<ButtonRelease-1>", self._onrelease)
@@ -1189,6 +1207,22 @@ class WifiWindow(BaseWindow):
 
     def _save_country(self, code):
         save_country(code)
+
+    def _is_wifi_connected(self):
+        """Check if WiFi is currently connected (quick nmcli check)."""
+        try:
+            r = subprocess.run(
+                ['nmcli', '-t', '-f', 'ACTIVE,SSID', 'dev', 'wifi'],
+                capture_output=True, text=True, timeout=3)
+            for line in r.stdout.strip().split('\n'):
+                if line.startswith('yes:'):
+                    ssid = line.split(':', 1)[1]
+                    if ssid:
+                        self._ssid = ssid
+                        return True
+        except Exception:
+            pass
+        return False
 
     def _select_country(self, name):
         """Apply the regulatory code, persist preference, and go to scan."""
@@ -1493,6 +1527,11 @@ class WifiWindow(BaseWindow):
                 x1,y1,x2,y2=self._canc_z
                 if x1<=x<=x2 and y1<=y<=y2: self._draw_scan(); return
         elif self._page == 'devices':
+            if hasattr(self, '_dev_disconnect_z'):
+                x1, y1, x2, y2 = self._dev_disconnect_z
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    self._do_disconnect()
+                    return
             if hasattr(self, '_dev_refresh_z'):
                 x1, y1, x2, y2 = self._dev_refresh_z
                 if x1 <= x <= x2 and y1 <= y <= y2:
@@ -1574,6 +1613,24 @@ class WifiWindow(BaseWindow):
         self._status_visible = True
         self._show_connecting()
 
+    def _do_disconnect(self):
+        """Disconnect the current WiFi network and return to scan."""
+        def go():
+            try:
+                subprocess.run(['nmcli', 'dev', 'disconnect', 'wlan0'],
+                               capture_output=True, text=True, timeout=10)
+            except Exception:
+                pass
+            if self.is_open():
+                self.win.after(0, self._draw_scan)
+
+        threading.Thread(target=go, daemon=True).start()
+        self._clr()
+        cx, c = self.S // 2, self.c
+        self.cv.create_text(cx, self.CY, text="Disconnecting...",
+                            fill=c['warning'],
+                            font=(_SF_FONT, 14, "bold"), tags="c")
+
     def _show_connecting(self):
         """Animated 'Connecting…' banner shown while nmcli runs."""
         self._connecting = True
@@ -1622,6 +1679,7 @@ class WifiWindow(BaseWindow):
         self._page = 'devices'
         self._clr()
         self._connecting = False   # stop any in-flight connecting spinner
+        self._status_visible = False  # stop the spinner animation loop
         cx, c = self.S // 2, self.c
 
         # Title
@@ -1645,11 +1703,20 @@ class WifiWindow(BaseWindow):
                             fill=c['text'],
                             font=(_SF_FONT, 22, "bold"), tags="c")
 
-        # Action row — DONE only (REFRESH removed)
+        # Action row — DISCONNECT / DONE
         ay = self.ACTION_Y
-        self._glass_pill(cx, ay, "DONE", w=140, h=36, active=True)
-        self._dev_done_z = (cx - 70, ay - 18, cx + 70, ay + 18)
-        # No refresh button on this page anymore
+        btn_w = 130
+        gap = 12
+        self._glass_pill(cx - (btn_w // 2 + gap // 2), ay, "DISCONNECT",
+                         w=btn_w, h=36, danger=True,
+                         font=(_SF_FONT, 11, "bold"))
+        self._glass_pill(cx + (btn_w // 2 + gap // 2), ay, "DONE",
+                         w=btn_w, h=36, active=True,
+                         font=(_SF_FONT, 11, "bold"))
+        self._dev_disconnect_z = (cx - (btn_w + gap // 2), ay - 18,
+                                  cx - gap // 2, ay + 18)
+        self._dev_done_z = (cx + gap // 2, ay - 18,
+                            cx + (btn_w + gap // 2), ay + 18)
         self._dev_refresh_z = (-1, -1, -1, -1)
 
 
@@ -1915,19 +1982,20 @@ class LEDWindow(BaseWindow):
         list_top = self.CONTENT_TOP + 4
         list_bot = self.ACTION_Y - 36
         avail = list_bot - list_top
-        gap = 6
-        item_h = max(34, min(44, (avail - (n - 1) * gap) // n))
+        gap = 8
+        item_h = max(38, min(50, (avail - (n - 1) * gap) // n))
         total_h = n * item_h + (n - 1) * gap
         start_y = list_top + (avail - total_h) // 2
 
-        # ─── Equal-width row sizing ──
-        # Find the chord at the EXTREME rows (first and last) and use that
-        # for every row, so all 6 LEDs have identical width regardless of
-        # where they fall on the round display.
+        # Use wider radius for bigger rows
+        row_radius = 215
         first_y = start_y + item_h // 2
         last_y  = start_y + (n - 1) * (item_h + gap) + item_h // 2
-        narrowest = min(self._safe_width(first_y), self._safe_width(last_y))
-        row_w = max(0, narrowest - 32)
+        def _chord(yy):
+            dy = abs(yy - self.CY)
+            return 2 * math.sqrt(max(0, row_radius**2 - dy**2)) if dy < row_radius else 100
+        narrowest = min(_chord(first_y), _chord(last_y))
+        row_w = max(0, int(narrowest) - 16)
         x1 = cx - row_w // 2
         x2 = cx + row_w // 2
 
@@ -1935,53 +2003,57 @@ class LEDWindow(BaseWindow):
             y = start_y + i * (item_h + gap) + item_h // 2
             is_on = leds.get_state(idx) if leds else False
 
-            # Row card — FULL PILL shape (no rect corners), all 6 equal width
+            # Row card — full pill shape, green border accent when ON
+            border_col = IOS_GREEN if is_on else c['card_border']
             self._smooth_card(
                 x1, y - item_h // 2, x2, y + item_h // 2,
                 fill=c['card_bg'],
-                border=(c['accent'] if is_on else c['card_border'], 1),
-                radius=item_h // 2,                       # full pill
+                border=(border_col, 2 if is_on else 1),
+                radius=item_h // 2,
             )
 
-            # LED name (left, with breathing room from the rounded edge)
-            self.cv.create_text(x1 + 22, y, text=name, anchor='w',
+            # LED name — bigger font
+            self.cv.create_text(x1 + 24, y, text=name, anchor='w',
                                 fill=c['text'],
-                                font=(_SF_FONT, 13, "bold"), tags="c")
+                                font=(_SF_FONT, 15, "bold"), tags="c")
 
-            # Toggle pill — green (success) when ON, frosted neutral when OFF
-            pill_w, pill_h = 56, item_h - 14
+            # Toggle pill — clear ON/OFF visual difference
+            pill_w, pill_h = 66, item_h - 12
             pill_x = x2 - pill_w // 2 - 14
-            self._glass_pill(pill_x, y,
-                             "ON" if is_on else "OFF",
-                             w=pill_w, h=pill_h,
-                             success=is_on,
-                             font=(_SF_FONT, 11, "bold"))
+            if is_on:
+                # ON: bright green, bold text
+                self._glass_pill(pill_x, y, "ON",
+                                 w=pill_w, h=pill_h,
+                                 success=True,
+                                 font=(_SF_FONT, 13, "bold"))
+            else:
+                # OFF: muted neutral, lighter text
+                self._glass_pill(pill_x, y, "OFF",
+                                 w=pill_w, h=pill_h,
+                                 font=(_SF_FONT, 13, "bold"))
 
             # Whole row is the touch target
             self._zones[idx] = (x1, y - item_h // 2, x2, y + item_h // 2)
 
-        # ─── Action row: ALL OFF / EXIT — equal width, full pills ──
+        # ─── Action row: ALL OFF / EXIT ───────────────────────────────
         ay = self.ACTION_Y + 6
-        # Same row width as the LED rows so the action row visually aligns
         gap_a = 14
-        action_pill_w = (row_w - gap_a) // 2
-        # Clamp so we don't get awkwardly tiny pills
-        action_pill_w = max(96, min(140, action_pill_w))
+        action_pill_w = max(110, min(150, (row_w - gap_a) // 2))
         self._glass_pill(cx - (action_pill_w // 2 + gap_a // 2), ay,
                          "ALL OFF",
-                         w=action_pill_w, h=36, danger=True,
-                         font=(_SF_FONT, 13, "bold"))
+                         w=action_pill_w, h=38, danger=True,
+                         font=(_SF_FONT, 14, "bold"))
         self._glass_pill(cx + (action_pill_w // 2 + gap_a // 2), ay,
                          "EXIT",
-                         w=action_pill_w, h=36,
-                         font=(_SF_FONT, 13, "bold"))
+                         w=action_pill_w, h=38,
+                         font=(_SF_FONT, 14, "bold"))
         self._zones['alloff'] = (
-            cx - (action_pill_w + gap_a // 2), ay - 18,
-            cx - gap_a // 2,                   ay + 18,
+            cx - (action_pill_w + gap_a // 2), ay - 19,
+            cx - gap_a // 2,                   ay + 19,
         )
         self._zones['exit'] = (
-            cx + gap_a // 2,                   ay - 18,
-            cx + (action_pill_w + gap_a // 2), ay + 18,
+            cx + gap_a // 2,                   ay - 19,
+            cx + (action_pill_w + gap_a // 2), ay + 19,
         )
 
     def _click(self, event):

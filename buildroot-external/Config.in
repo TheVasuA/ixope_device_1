@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_IXOPE_PATH/package/ixope-app/Config.in"
