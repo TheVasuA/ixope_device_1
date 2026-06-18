@@ -225,8 +225,9 @@ class BaseWindow:
         self.win.geometry(f"{self.S}x{self.S}+{root.winfo_x()}+{root.winfo_y()}")
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
-        self.win.configure(bg="black")
-        self.cv = tk.Canvas(self.win, width=self.S, height=self.S, bg="black", highlightthickness=0)
+        self.win.configure(bg="black", cursor="none")
+        self.cv = tk.Canvas(self.win, width=self.S, height=self.S,
+                           bg="black", highlightthickness=0)
         self.cv.pack()
         self._bg()
         if title:
@@ -234,26 +235,56 @@ class BaseWindow:
                                 fill=self.c['text'], font=(_SF_FONT, 15, "bold"))
 
     def _bg(self):
-        """Semi-transparent circular background — camera feed shows through
-        at ~50% behind the window content (frosted dark overlay effect)."""
-        img = Image.new("RGBA", (self.S, self.S), (0, 0, 0, 0))
-        d = ImageDraw.Draw(img)
-        if self.mode == 'dark':
-            # Background at 50% fill → combined with 80% window alpha ≈ 40% opaque
-            # (60% camera visible through the background)
-            d.ellipse([0, 0, self.S, self.S], fill=(14, 14, 22, 128))
-            d.ellipse([4, 4, self.S-4, self.S-4], outline=(30, 30, 45, 80), width=1)
+        """iOS-style frosted background — captures the live camera frame,
+        dims it to ~40% brightness, applies circular mask, and uses it as
+        the window background. Works WITHOUT a compositor."""
+        import cv2 as _cv2
+
+        S = self.S
+        img = Image.new("RGBA", (S, S), (0, 0, 0, 255))
+
+        # Try to grab the current camera frame from the main app
+        cam_frame = None
+        if self.main_app and hasattr(self.main_app, '_camera'):
+            frame = self.main_app._camera.get_frame()
+            if frame is not None:
+                try:
+                    # Resize to 480x480
+                    frame_rgb = _cv2.cvtColor(frame, _cv2.COLOR_BGR2RGB)
+                    frame_resized = _cv2.resize(frame_rgb, (S, S))
+                    cam_frame = Image.fromarray(frame_resized)
+                except Exception:
+                    pass
+
+        if cam_frame:
+            # Darken the camera frame (iOS frosted effect = dim + slight blur)
+            from PIL import ImageEnhance
+            cam_frame = ImageEnhance.Brightness(cam_frame).enhance(0.35)
+            try:
+                cam_frame = cam_frame.filter(ImageFilter.GaussianBlur(radius=3))
+            except Exception:
+                pass
+            img = cam_frame.convert("RGBA")
         else:
-            d.ellipse([0, 0, self.S, self.S], fill=(242, 242, 248, 128))
-            d.ellipse([4, 4, self.S-4, self.S-4], outline=(220, 220, 230, 80), width=1)
+            # No camera — fallback to solid dark
+            d = ImageDraw.Draw(img)
+            if self.mode == 'dark':
+                d.rectangle([0, 0, S, S], fill=(14, 14, 22, 255))
+            else:
+                d.rectangle([0, 0, S, S], fill=(240, 240, 248, 255))
+
+        # Apply circular mask (round display)
+        mask = Image.new("L", (S, S), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, S, S], fill=255)
+        img.putalpha(mask)
+
+        # Subtle inner ring for depth
+        d2 = ImageDraw.Draw(img)
+        ring_col = (255, 255, 255, 30) if self.mode == 'dark' else (0, 0, 0, 20)
+        d2.ellipse([4, 4, S-4, S-4], outline=ring_col, width=1)
+
         self._bgp = ImageTk.PhotoImage(img)
         self.cv.create_image(self.CX, self.CY, image=self._bgp)
-        # Window at 80% opacity — buttons/text are 80% visible,
-        # background (already at 50% fill alpha) appears ~40% total.
-        try:
-            self.win.attributes('-alpha', 0.8)
-        except (tk.TclError, AttributeError):
-            pass
 
     def _safe_width(self, y):
         """Get available content width at a given y position (circle chord)."""
@@ -540,7 +571,7 @@ class BaseWindow:
         self.cv.create_line(x-hw+r, y-hh, x+hw-r, y-hh, fill=bd, tags=kbtag)
         self.cv.create_line(x-hw+r, y+hh, x+hw-r, y+hh, fill=bd, tags=kbtag)
 
-        d = "␣" if ch == " " else ch
+        d = "———" if ch == " " else ch
         if len(d) > 2: fs = max(12, min(15, w // 5))
         elif len(d) == 1: fs = max(15, min(22, int(w / 2.5)))
         else: fs = max(12, min(15, w // 4))
@@ -601,7 +632,7 @@ class BaseWindow:
         for k in [gx1, gx1+r, x1, x1+r]:
             self.cv.create_rectangle(k, gy1 if k in (gx1, gx1+r) else y1, x2+pad if k in (gx1, gx1+r) else x2, gy2 if k in (gx1, gx1+r) else y2, fill=accent, outline="", tags="kf")
         
-        d = "␣" if ch == " " else ch
+        d = "———" if ch == " " else ch
         fs = max(15, min(22, int(w / 2.5))) if len(d) == 1 else max(12, min(15, w // 4))
         self.cv.create_text(cx, cy, text=d, fill=self._pill_text_color(accent), font=(_SF_FONT, fs, "bold"), tags="kf")
         
@@ -853,14 +884,13 @@ class SettingsWindow(BaseWindow):
             self._clear_zone = None
         self._search_zone = (fx1, field_y, fx2, field_y + field_h)
 
-        # Country list (scrollable, WiFi-style pill rows)
+        # Country list — fixed, no scroll. Search to narrow results.
         list_top = field_y + field_h + 10
         list_bot = 220 if kb_visible else self.ACTION_Y - 50
         row_h, gap = 38, 5
         visible_h = list_bot - list_top
-        total_h = len(countries) * (row_h + gap) - gap if countries else 0
-        self._country_scroll_max = max(0.0, total_h - visible_h)
-        self._country_scroll_y = max(0.0, min(self._country_scroll_max, getattr(self, '_country_scroll_y', 0.0)))
+        max_visible = int(visible_h // (row_h + gap))
+
         row_radius = 210
         def _chord(yy):
             dy = abs(yy - self.CY)
@@ -871,11 +901,9 @@ class SettingsWindow(BaseWindow):
         if not countries:
             self.cv.create_text(cx, (list_top + list_bot) // 2, text='No country found', fill=c['text_secondary'], font=('Arial', 12, 'bold'), tags='c')
         else:
-            for i, name in enumerate(countries):
-                y = list_top + i * (row_h + gap) + row_h // 2 - self._country_scroll_y
-                # Only draw rows fully within the visible area (no overlap below)
-                if y - row_h // 2 < list_top - 2 or y + row_h // 2 > list_bot + 2:
-                    continue
+            # Show only what fits — user searches to find their country
+            for i, name in enumerate(countries[:max_visible]):
+                y = list_top + i * (row_h + gap) + row_h // 2
                 is_active = (name == cur_name)
                 if is_active:
                     self._smooth_pill(cx, y, '', c['accent'], w=row_w, h=row_h, alpha=255, tag='c')
@@ -888,11 +916,11 @@ class SettingsWindow(BaseWindow):
                 self.cv.create_text(cx, y, text=dn, fill=txt_col, font=('Arial', 15, 'bold'), tags='c')
                 self._cs_items.append((name, cx - row_w//2, int(y) - row_h//2, cx + row_w//2, int(y) + row_h//2))
 
-        # Scroll indicators
-        if self._country_scroll_y > 0:
-            self.cv.create_text(cx, list_top - 6, text='\u25b2', fill=c['text_secondary'], font=('Arial', 9), tags='c')
-        if self._country_scroll_y < self._country_scroll_max:
-            self.cv.create_text(cx, list_bot + 6, text='\u25bc', fill=c['text_secondary'], font=('Arial', 9), tags='c')
+            # Show count hint if there are more results
+            if len(countries) > max_visible:
+                self.cv.create_text(cx, list_bot + 6,
+                                   text=f"{len(countries) - max_visible} more — type to search",
+                                   fill=c['text_secondary'], font=('Arial', 9), tags='c')
 
         # Keyboard (when search focused)
         self._keys = {}
@@ -903,9 +931,6 @@ class SettingsWindow(BaseWindow):
         ay = self.ACTION_Y + 10
         self._glass_pill(cx, ay, 'BACK', w=90, h=30, tag='c')
         self._cs_back_z = (cx - 45, ay - 15, cx + 45, ay + 15)
-
-        # Drag zone covers the full list area
-        self._list_drag_zone = (0, list_top, self.S, list_bot)
 
 
     def _rddl(self):
@@ -945,16 +970,10 @@ class SettingsWindow(BaseWindow):
                         self._refresh()
                     return
             
-            # Country list item: Immediate "Tap to select" visual feedback
+            # Country list item — tap to select immediately
             for name, x1, y1, x2, y2 in getattr(self, '_cs_items', []):
                 if x1 <= x <= x2 and y1 <= y <= y2:
-                    self._press_name = name
-                    self._press_x = x
-                    self._press_y = y
-                    self._press_moved = False
-                    self._smooth_pill((x1+x2)//2, (y1+y2)//2, "", self.c['accent'], w=x2-x1, h=y2-y1, alpha=255, tag="c cs_list")
-                    self.cv.create_text(self.CX, (y1+y2)//2, text=name, anchor='center', fill=self._pill_text_color(self.c['accent']), font=(_SF_FONT, 15, "bold"), tags="c cs_list")
-                    self.cv.tag_lower("cs_list", "cs_overlay")
+                    self._select_country(name)
                     return
             
             # BACK button — if keyboard open, close it first; else leave page
@@ -1053,23 +1072,7 @@ class SettingsWindow(BaseWindow):
         x, y = event.x, event.y
         
         if self._page == 'country':
-            if hasattr(self, '_list_drag_zone'):
-                lx1, ly1, lx2, ly2 = self._list_drag_zone
-                if lx1 <= x <= lx2 and ly1 <= y <= ly2:
-                    if not hasattr(self, '_drag_start_y'):
-                        self._drag_start_y = y
-                        self._drag_start_scroll_y = getattr(self, '_country_scroll_y', 0.0)
-                    else:
-                        # 2x scroll speed for fast navigation through 170+ countries
-                        drag_delta = (self._drag_start_y - y) * 2
-                        new_scroll = self._drag_start_scroll_y + drag_delta
-                        new_scroll = max(0.0, min(getattr(self, '_country_scroll_max', 0.0), new_scroll))
-                        # Any real movement cancels a pending row-tap
-                        if abs(drag_delta) > 3:
-                            self._press_moved = True
-                        if new_scroll != getattr(self, '_country_scroll_y', 0.0):
-                            self._country_scroll_y = new_scroll
-                            self._refresh()
+            # No scrolling — country list is fixed, search to filter
             return
         
         # Original delay slider handling
@@ -1191,15 +1194,30 @@ class WifiWindow(BaseWindow):
         # happy.)
         if not self._has_saved_country():
             self._save_country('US')
-        # If already connected to WiFi, show the connected page so the user
-        # can disconnect. Otherwise start scanning for networks.
-        if self._is_wifi_connected():
-            self._draw_devices()
-        else:
-            self._draw_scan()
+        # Show a loading state immediately, then check connection in background
+        self._draw_loading()
         self.cv.bind("<Button-1>", self._click)
         self.cv.bind("<B1-Motion>", self._ondrag)
         self.cv.bind("<ButtonRelease-1>", self._onrelease)
+        threading.Thread(target=self._check_and_route, daemon=True).start()
+
+    def _draw_loading(self):
+        """Instant loading screen while checking WiFi status."""
+        self._page = 'loading'
+        self._clr()
+        cx, c = self.S // 2, self.c
+        self.cv.create_text(cx, self.CY, text="Scanning WiFi...",
+                            fill=c['text'], font=(_SF_FONT, 18, "bold"), tags="c")
+
+    def _check_and_route(self):
+        """Background: check if connected, then route to the right page."""
+        connected = self._is_wifi_connected()
+        if not self.is_open():
+            return
+        if connected:
+            self.win.after(0, self._draw_devices)
+        else:
+            self.win.after(0, self._draw_scan)
 
     # ─── Country preference persistence (delegates to module helpers) ───
     def _has_saved_country(self):
@@ -1457,16 +1475,15 @@ class WifiWindow(BaseWindow):
         # ─── KEYBOARD ─────────────────────────────────────────────────
         # Keyboard layout/size unchanged — it still renders from start_y but is
         # now bounded above the action row so OK/CANCEL stay on-screen.
-        self._keys = self.draw_keyboard(start_y=158, end_y=self.ACTION_Y - 22, layout='full', caps=self._caps, sym_mode=getattr(self, '_sym_mode', False))
+        self._keys = self.draw_keyboard(start_y=158, end_y=self.ACTION_Y - 10, layout='full', caps=self._caps, sym_mode=getattr(self, '_sym_mode', False))
 
         # ─── ACTION ROW: OK / CANCEL ──────────────────────────────────
-        # Pulled up to ACTION_Y so the pills sit on-screen within the round
-        # bezel (the old y=446 pushed them off the bottom of the display).
-        ay = self.ACTION_Y
-        self._glass_pill(cx - 64, ay, "OK",     w=110, h=34, success=True, tag="c kb")
-        self._glass_pill(cx + 64, ay, "CANCEL", w=110, h=34, danger=True, tag="c kb")
-        self._conn_z = (cx - 119, ay - 17, cx - 9,  ay + 17)
-        self._canc_z = (cx + 9,   ay - 17, cx + 119, ay + 17)
+        # Positioned below the keyboard with clear gap (no overlap with keys)
+        ay = self.ACTION_Y + 14
+        self._glass_pill(cx - 64, ay, "OK",     w=110, h=32, success=True, tag="c kb")
+        self._glass_pill(cx + 64, ay, "CANCEL", w=110, h=32, danger=True, tag="c kb")
+        self._conn_z = (cx - 119, ay - 16, cx - 9,  ay + 16)
+        self._canc_z = (cx + 9,   ay - 16, cx + 119, ay + 16)
 
 
     def _click(self, event):
@@ -1732,7 +1749,7 @@ class ScopeWindow(BaseWindow):
 
     SCOPES = [
         ('opth',  'Ophthalmoscope'),
-        ('otto',  'Otoscope'),
+        ('oto',  'Otoscope'),
         ('derm',  'Dermatoscope'),
         ('micro', 'Microscope'),
     ]
@@ -1782,7 +1799,7 @@ class ScopeWindow(BaseWindow):
                        int(S * 0.46), int(S * 0.46)],
                       fill=(255, 255, 255, 200))
 
-        elif sid == 'otto':
+        elif sid == 'oto':
             # Otoscope — handle + cone + tip (stylized as ear-light tool)
             # Handle (rectangle on top-left)
             d.rounded_rectangle(
@@ -1882,7 +1899,7 @@ class ScopeWindow(BaseWindow):
         start_x = cx - grid_w // 2
         start_y = self.CY - grid_h // 2 - 12
 
-        tints = {'opth': '#30d158', 'otto': '#0a84ff', 'derm': '#ff9f0a', 'micro': '#bf5af2'}
+        tints = {'opth': '#30d158', 'oto': '#0a84ff', 'derm': '#ff9f0a', 'micro': '#bf5af2'}
 
         for i, (sid, label) in enumerate(self.SCOPES):
             row = i // 2
@@ -1952,45 +1969,39 @@ class ScopeWindow(BaseWindow):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LED CONTROL - List view with on/off toggles
+# LED CONTROL - Brightness sliders for 6 LEDs
 # ═══════════════════════════════════════════════════════════════════════════════
 class LEDWindow(BaseWindow):
-    """LED control list — shows each light with on/off toggle button."""
-
-    LED_NAMES = {
-        5: "Blue LED",
-        6: "Main LED",
-        7: "Non-Polarized",
-        8: "Polarized",
-        11: "Non-Polar (New)",
-        12: "Polar (New)",
-    }
+    """LED control — each LED has a name + brightness slider (0-9 = off to 90%)."""
 
     def __init__(self, root, main_app):
         super().__init__(root, main_app, "LIGHTS")
+        self._dragging = None  # which LED index is being dragged
         self._draw()
         self.cv.bind("<Button-1>", self._click)
+        self.cv.bind("<B1-Motion>", self._drag)
 
     def _draw(self):
         self._clr()
         cx, c = self.CX, self.c
         leds = self.main_app._leds if self.main_app else None
         self._zones = {}
+        self._slider_zones = {}  # led_index -> (x1, y, x2, y) for drag
 
-        items = list(self.LED_NAMES.items())
+        items = list(settings.LED_CONFIGS.items())
         n = len(items)
-        list_top = self.CONTENT_TOP + 4
-        list_bot = self.ACTION_Y - 36
+        list_top = self.CONTENT_TOP
+        list_bot = self.ACTION_Y - 32
         avail = list_bot - list_top
-        gap = 8
-        item_h = max(38, min(50, (avail - (n - 1) * gap) // n))
+        gap = 6
+        item_h = max(38, min(48, (avail - (n - 1) * gap) // n))
         total_h = n * item_h + (n - 1) * gap
         start_y = list_top + (avail - total_h) // 2
 
-        # Use wider radius for bigger rows
+        # Row width
         row_radius = 215
         first_y = start_y + item_h // 2
-        last_y  = start_y + (n - 1) * (item_h + gap) + item_h // 2
+        last_y = start_y + (n - 1) * (item_h + gap) + item_h // 2
         def _chord(yy):
             dy = abs(yy - self.CY)
             return 2 * math.sqrt(max(0, row_radius**2 - dy**2)) if dy < row_radius else 100
@@ -1999,65 +2010,74 @@ class LEDWindow(BaseWindow):
         x1 = cx - row_w // 2
         x2 = cx + row_w // 2
 
-        for i, (idx, name) in enumerate(items):
+        for i, (idx, config) in enumerate(items):
             y = start_y + i * (item_h + gap) + item_h // 2
-            is_on = leds.get_state(idx) if leds else False
+            name = config['name']
+            brightness = leds.get_brightness(idx) if leds else 0
+            is_on = brightness > 0
 
-            # Row card — full pill shape, green border accent when ON
+            # Row background — green border when on
             border_col = IOS_GREEN if is_on else c['card_border']
-            self._smooth_card(
-                x1, y - item_h // 2, x2, y + item_h // 2,
-                fill=c['card_bg'],
-                border=(border_col, 2 if is_on else 1),
-                radius=item_h // 2,
-            )
+            self._smooth_card(x1, y - item_h // 2, x2, y + item_h // 2,
+                             fill=c['card_bg'],
+                             border=(border_col, 2 if is_on else 1),
+                             radius=item_h // 2)
 
-            # LED name — bigger font
-            self.cv.create_text(x1 + 24, y, text=name, anchor='w',
-                                fill=c['text'],
-                                font=(_SF_FONT, 15, "bold"), tags="c")
+            # LED name (left side)
+            name_w = row_w * 0.35
+            self.cv.create_text(x1 + 18, y, text=name, anchor='w',
+                               fill=c['text'], font=(_SF_FONT, 11, "bold"), tags="c")
 
-            # Toggle pill — clear ON/OFF visual difference
-            pill_w, pill_h = 66, item_h - 12
-            pill_x = x2 - pill_w // 2 - 14
-            if is_on:
-                # ON: bright green, bold text
-                self._glass_pill(pill_x, y, "ON",
-                                 w=pill_w, h=pill_h,
-                                 success=True,
-                                 font=(_SF_FONT, 13, "bold"))
-            else:
-                # OFF: muted neutral, lighter text
-                self._glass_pill(pill_x, y, "OFF",
-                                 w=pill_w, h=pill_h,
-                                 font=(_SF_FONT, 13, "bold"))
+            # Brightness slider (right side)
+            slider_x1 = int(x1 + name_w + 10)
+            slider_x2 = x2 - 18
+            slider_w = slider_x2 - slider_x1
+            slider_y = y
+            track_h = 6
 
-            # Whole row is the touch target
+            # Track background
+            self.cv.create_rectangle(slider_x1, slider_y - track_h//2,
+                                    slider_x2, slider_y + track_h//2,
+                                    fill="#3a3f55", outline="", tags="c")
+            # Filled portion
+            fill_w = int(slider_w * brightness / 9) if brightness > 0 else 0
+            if fill_w > 0:
+                self.cv.create_rectangle(slider_x1, slider_y - track_h//2,
+                                        slider_x1 + fill_w, slider_y + track_h//2,
+                                        fill=IOS_GREEN, outline="", tags="c")
+            # Handle
+            hx = slider_x1 + int(slider_w * brightness / 9)
+            self.cv.create_oval(hx - 8, slider_y - 8, hx + 8, slider_y + 8,
+                               fill="white", outline=IOS_GREEN if is_on else "#666",
+                               width=2, tags="c")
+
+            # Store zones
             self._zones[idx] = (x1, y - item_h // 2, x2, y + item_h // 2)
+            self._slider_zones[idx] = (slider_x1, slider_y, slider_x2, slider_w)
 
         # ─── Action row: ALL OFF / EXIT ───────────────────────────────
         ay = self.ACTION_Y + 6
         gap_a = 14
         action_pill_w = max(110, min(150, (row_w - gap_a) // 2))
         self._glass_pill(cx - (action_pill_w // 2 + gap_a // 2), ay,
-                         "ALL OFF",
-                         w=action_pill_w, h=38, danger=True,
-                         font=(_SF_FONT, 14, "bold"))
+                         "ALL OFF", w=action_pill_w, h=36, danger=True,
+                         font=(_SF_FONT, 13, "bold"))
         self._glass_pill(cx + (action_pill_w // 2 + gap_a // 2), ay,
-                         "EXIT",
-                         w=action_pill_w, h=38,
-                         font=(_SF_FONT, 14, "bold"))
-        self._zones['alloff'] = (
-            cx - (action_pill_w + gap_a // 2), ay - 19,
-            cx - gap_a // 2,                   ay + 19,
-        )
-        self._zones['exit'] = (
-            cx + gap_a // 2,                   ay - 19,
-            cx + (action_pill_w + gap_a // 2), ay + 19,
-        )
+                         "EXIT", w=action_pill_w, h=36,
+                         font=(_SF_FONT, 13, "bold"))
+        self._zones['alloff'] = (cx - (action_pill_w + gap_a // 2), ay - 18,
+                                 cx - gap_a // 2, ay + 18)
+        self._zones['exit'] = (cx + gap_a // 2, ay - 18,
+                               cx + (action_pill_w + gap_a // 2), ay + 18)
 
     def _click(self, event):
         x, y = event.x, event.y
+        # Check slider drag start
+        for idx, (sx1, sy, sx2, sw) in self._slider_zones.items():
+            if sx1 - 10 <= x <= sx2 + 10 and sy - 14 <= y <= sy + 14:
+                self._set_led_from_x(idx, x)
+                return
+        # Check action buttons
         for key, (x1, y1, x2, y2) in self._zones.items():
             if x1 <= x <= x2 and y1 <= y <= y2:
                 if key == 'exit':
@@ -2067,10 +2087,28 @@ class LEDWindow(BaseWindow):
                         self.main_app._leds.all_off()
                     self._draw()
                 elif isinstance(key, int):
+                    # Tap on the name area = toggle on/off
                     if self.main_app:
                         self.main_app._leds.toggle(key)
                     self._draw()
                 return
+
+    def _drag(self, event):
+        """Handle slider drag — adjust brightness in real time."""
+        x, y = event.x, event.y
+        for idx, (sx1, sy, sx2, sw) in self._slider_zones.items():
+            if sx1 - 10 <= x <= sx2 + 10 and sy - 14 <= y <= sy + 14:
+                self._set_led_from_x(idx, x)
+                return
+
+    def _set_led_from_x(self, idx, x):
+        """Convert x position to brightness 0-9 and send command."""
+        sx1, sy, sx2, sw = self._slider_zones[idx]
+        rel = max(0.0, min(1.0, (x - sx1) / max(1, sw)))
+        level = int(round(rel * 9))
+        if self.main_app:
+            self.main_app._leds.set_brightness(idx, level)
+        self._draw()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2171,7 +2209,7 @@ class FolderWindow(BaseWindow):
         # tight spacing below it.
 
         # ─── Scope filter tabs (compact, generous gaps) ────────────────
-        tabs = [('all', 'ALL'), ('opth', 'OPT'), ('otto', 'OTO'),
+        tabs = [('all', 'ALL'), ('opth', 'OPT'), ('oto', 'OTO'),
                 ('derm', 'DRM'), ('micro', 'MIC')]
         self._tz = {}
         chord = self._safe_width(self.CONTENT_TOP)
@@ -2309,18 +2347,41 @@ class FolderWindow(BaseWindow):
                                 fill=c['danger'],
                                 font=(_SF_FONT, 13, "bold"), tags="c")
 
-        # Filename + counter
-        self.cv.create_text(cx, self.TITLE_Y - 16,
+        # Filename + counter — at the bottom, below image
+        info_y = self.ACTION_Y - 30
+        self.cv.create_text(cx, info_y,
                             text=item['filename'][:24],
                             fill=c['text'],
-                            font=(_SF_FONT, 12, "bold"), tags="c")
-        self.cv.create_text(cx, self.TITLE_Y,
+                            font=(_SF_FONT, 11, "bold"), tags="c")
+        self.cv.create_text(cx, info_y + 16,
                             text=f"{self._pidx + 1} / {len(self._items)}",
                             fill=c['text_secondary'],
-                            font=(_SF_FONT, 11), tags="c")
+                            font=(_SF_FONT, 10), tags="c")
 
-        # Action row — ◀ / BACK / ▶
-        ay = self.ACTION_Y
+        # DELETE icon — top right corner of the image area
+        del_y = 90
+        del_x = cx + 105
+        # Drawn trash can icon (red, font-independent)
+        self.cv.create_rectangle(del_x - 6, del_y - 2, del_x + 6, del_y + 10,
+                                fill="", outline="#ff3b30", width=2, tags="c")
+        self.cv.create_line(del_x - 8, del_y - 3, del_x + 8, del_y - 3,
+                           fill="#ff3b30", width=2, tags="c")
+        self.cv.create_line(del_x - 3, del_y - 6, del_x - 3, del_y - 3,
+                           fill="#ff3b30", width=2, tags="c")
+        self.cv.create_line(del_x - 3, del_y - 6, del_x + 3, del_y - 6,
+                           fill="#ff3b30", width=2, tags="c")
+        self.cv.create_line(del_x + 3, del_y - 6, del_x + 3, del_y - 3,
+                           fill="#ff3b30", width=2, tags="c")
+        self.cv.create_line(del_x - 3, del_y + 1, del_x - 3, del_y + 8,
+                           fill="#ff3b30", width=1, tags="c")
+        self.cv.create_line(del_x, del_y + 1, del_x, del_y + 8,
+                           fill="#ff3b30", width=1, tags="c")
+        self.cv.create_line(del_x + 3, del_y + 1, del_x + 3, del_y + 8,
+                           fill="#ff3b30", width=1, tags="c")
+        self._del_z = (del_x - 18, del_y - 18, del_x + 18, del_y + 18)
+
+        # Action row — ◀ / BACK / ▶ (pushed to bottom)
+        ay = self.ACTION_Y + 14
         if self._pidx > 0:
             self._glass_pill(cx - 88, ay, "◀", w=58, h=36,
                              font=(_SF_FONT, 16, "bold"))
@@ -2437,13 +2498,18 @@ class FolderWindow(BaseWindow):
             self._video_zones[key] = (x - ctrl_w // 2, ay - ctrl_h // 2,
                                        x + ctrl_w // 2, ay + ctrl_h // 2)
 
-        # BACK to grid — text label is fine (plain ASCII)
+        # BACK and DELETE — sit at the very bottom action zone
         back_y = 432
-        self._glass_pill(cx, back_y, "BACK TO GALLERY", tag="vc",
-                         w=180, h=30,
-                         font=(_SF_FONT, 12, "bold"))
-        self._video_zones['back'] = (cx - 90, back_y - 15,
-                                      cx + 90, back_y + 15)
+        self._glass_pill(cx - 50, back_y, "BACK", tag="vc",
+                         w=120, h=30,
+                         font=(_SF_FONT, 11, "bold"))
+        self._glass_pill(cx + 75, back_y, "DELETE", tag="vc",
+                         w=80, h=30, danger=True,
+                         font=(_SF_FONT, 10, "bold"))
+        self._video_zones['back'] = (cx - 110, back_y - 15,
+                                      cx + 10, back_y + 15)
+        self._video_zones['delete'] = (cx + 35, back_y - 15,
+                                        cx + 115, back_y + 15)
 
     def _draw_media_glyph(self, x, y, shape, size=13, color="white"):
         """Draw a media-control icon as vector shapes (font-independent)."""
@@ -2544,6 +2610,22 @@ class FolderWindow(BaseWindow):
         if hasattr(self,'_vcap') and self._vcap:
             self._vcap.release(); self._vcap = None
 
+    def _delete_current(self):
+        """Delete the currently viewed image/video file and return to grid."""
+        if self._pidx < len(self._items):
+            item = self._items[self._pidx]
+            fp = self._fpath(item)
+            try:
+                if os.path.exists(fp):
+                    os.remove(fp)
+            except OSError:
+                pass
+            # Remove from list and go back to grid
+            self._items.pop(self._pidx)
+            if self._pidx >= len(self._items):
+                self._pidx = max(0, len(self._items) - 1)
+        self._draw_grid()
+
     def _click(self, event):
         x, y = event.x, event.y
         if self._view == 'video':
@@ -2552,11 +2634,15 @@ class FolderWindow(BaseWindow):
                     if   key == 'playpause': self._video_toggle_playpause()
                     elif key == 'stop':      self._stop_video(); self._draw_grid()
                     elif key == 'back':      self._stop_video(); self._draw_grid()
+                    elif key == 'delete':    self._stop_video(); self._delete_current()
                     elif key == 'rewind':    self._video_seek(-5)
                     elif key == 'forward':   self._video_seek(+5)
                     return
             return
         if self._view == 'preview':
+            if hasattr(self,'_del_z'):
+                x1,y1,x2,y2=self._del_z
+                if x1<=x<=x2 and y1<=y<=y2: self._delete_current(); return
             if hasattr(self,'_pz'):
                 x1,y1,x2,y2=self._pz
                 if x1<=x<=x2 and y1<=y<=y2 and self._pidx>0: self._pidx-=1; self._draw_preview(); return

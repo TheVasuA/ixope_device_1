@@ -1,100 +1,137 @@
 """
-LED Controller - manages all LED states via I2C or UART commands.
-Supports both communication methods with automatic fallback.
+LED Controller - manages 6 LEDs with brightness (0-9) via UART.
+Also receives battery percentage from MCU and controls liquid lens focus.
+
+Protocol (Radxa → MCU):
+  LED:   *XY#   X=LED(1-6), Y=brightness(0=off, 1-9 = 10%-90%)
+  All off: OF
+  Focus: L24 to L70 (liquid lens, maps 0-100%)
+
+Protocol (MCU → Radxa):
+  Battery: B5%, B25%, B77%, B100%
 """
+import threading
+import re
 from ..config import settings
-from .i2c import I2CBus
 from .uart import UARTBus
 
 
 class LEDController:
-    """Controls medical device LEDs through Arduino via I2C or UART."""
+    """Controls medical device LEDs via UART with brightness sliders."""
 
-    def __init__(self, i2c_bus=None, uart_bus=None, prefer_uart=True):
-        """
-        Initialize LED controller.
-        Args:
-            i2c_bus: I2CBus instance (or None to auto-create)
-            uart_bus: UARTBus instance (or None to auto-create)
-            prefer_uart: If True, try UART first, fallback to I2C
-        """
-        self._i2c = i2c_bus or I2CBus()
-        self._uart = uart_bus or UARTBus()
-        self._prefer_uart = prefer_uart
-        self._states = {}       # icon_index -> bool
-        self._brightness = {}   # icon_index -> int (0-9)
+    def __init__(self):
+        self._uart = UARTBus()
+        self._lock = threading.Lock()
 
-        # Initialize states from config
+        # LED states: index (1-6) → brightness level (0-9)
+        # 0 = off, 1 = 10%, ... 9 = 90%
+        self._brightness = {}
         for idx in settings.LED_CONFIGS:
-            self._states[idx] = False
-            self._brightness[idx] = 5  # Default 50%
+            self._brightness[idx] = 0  # all off initially
 
-        # Report which bus is active
+        # Battery level received from MCU
+        self._battery_level = None
+
+        # Focus level (0-100 mapped to L24-L70)
+        self._focus = 50  # default mid
+
+        # Start UART receive thread for battery updates
+        self._running = True
+        self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True,
+                                           name="UART-RX")
         if self._uart.is_available:
-            print("LED Controller: Using UART")
-        elif self._i2c.is_available:
-            print("LED Controller: Using I2C")
+            self._rx_thread.start()
+            print("LED Controller: UART active, listening for battery")
         else:
-            print("LED Controller: No communication bus available")
+            print("LED Controller: No UART available")
 
-    def toggle(self, icon_index):
-        """Toggle LED on/off. Returns new state."""
-        new_state = not self._states.get(icon_index, False)
-        self.set_state(icon_index, new_state)
-        return new_state
+    # ─── LED Control ──────────────────────────────────────────────────────
 
-    def set_state(self, icon_index, on):
-        """Set LED on or off."""
-        config = settings.LED_CONFIGS.get(icon_index)
-        if not config:
+    def set_brightness(self, led_index, level):
+        """Set LED brightness. level: 0 (off) to 9 (90%)."""
+        if led_index not in settings.LED_CONFIGS:
             return False
-
-        self._states[icon_index] = on
-        cmd = config['on_cmd'] if on else config['off_cmd']
-        return self._send_command(cmd)
-
-    def set_brightness(self, icon_index, level):
-        """Set LED brightness (0-9)."""
         level = max(0, min(9, int(level)))
-        config = settings.LED_CONFIGS.get(icon_index)
-        if not config:
-            return False
-
-        self._brightness[icon_index] = level
+        self._brightness[led_index] = level
+        config = settings.LED_CONFIGS[led_index]
         cmd = config['brightness_cmd'].format(value=level)
-        return self._send_command(cmd)
+        return self._send(cmd)
 
-    def get_state(self, icon_index):
-        """Get current LED state."""
-        return self._states.get(icon_index, False)
+    def get_brightness(self, led_index):
+        """Get current brightness level (0-9)."""
+        return self._brightness.get(led_index, 0)
 
-    def get_brightness(self, icon_index):
-        """Get current brightness level."""
-        return self._brightness.get(icon_index, 5)
+    def is_on(self, led_index):
+        """Check if LED is on (brightness > 0)."""
+        return self._brightness.get(led_index, 0) > 0
+
+    def get_state(self, led_index):
+        """Compat: returns True if on."""
+        return self.is_on(led_index)
+
+    def toggle(self, led_index):
+        """Toggle LED on (last brightness or 50%) / off."""
+        if self.is_on(led_index):
+            self.set_brightness(led_index, 0)
+        else:
+            self.set_brightness(led_index, 5)  # default 50%
 
     def all_off(self):
-        """Turn off all LEDs."""
+        """Turn off all LEDs with the OF command."""
         for idx in settings.LED_CONFIGS:
-            self.set_state(idx, False)
+            self._brightness[idx] = 0
+        self._send(settings.LED_ALL_OFF_CMD)
 
-    def _send_command(self, cmd):
-        """Send command via preferred bus, fallback to other."""
-        if self._prefer_uart:
-            if self._uart.is_available:
-                return self._uart.write_command(cmd)
-            elif self._i2c.is_available:
-                return self._i2c.write_string(settings.ARDUINO_ADDRESS, cmd)
-        else:
-            if self._i2c.is_available:
-                return self._i2c.write_string(settings.ARDUINO_ADDRESS, cmd)
-            elif self._uart.is_available:
-                return self._uart.write_command(cmd)
+    # ─── Focus Control ────────────────────────────────────────────────────
 
-        print(f"LED cmd (no bus): {cmd}")
+    def set_focus(self, percent):
+        """Set liquid lens focus. percent: 0-100 → L24-L70."""
+        percent = max(0, min(100, int(percent)))
+        self._focus = percent
+        # Map 0-100% to L24-L70
+        value = settings.FOCUS_MIN + int((settings.FOCUS_MAX - settings.FOCUS_MIN) * percent / 100)
+        cmd = f"{settings.FOCUS_CMD_PREFIX}{value}"
+        return self._send(cmd)
+
+    def get_focus(self):
+        """Get current focus percentage."""
+        return self._focus
+
+    # ─── Battery (received from MCU) ─────────────────────────────────────
+
+    def get_battery(self):
+        """Get last received battery percentage (0-100) or None."""
+        return self._battery_level
+
+    def _rx_loop(self):
+        """Background thread: read UART for battery updates from MCU."""
+        while self._running:
+            try:
+                line = self._uart.read_response(timeout=1.0)
+                if line:
+                    self._parse_rx(line)
+            except Exception:
+                pass
+
+    def _parse_rx(self, line):
+        """Parse incoming MCU data. Expected: B5%, B25%, B77%, B100%"""
+        line = line.strip()
+        # Battery: B followed by number and %
+        m = re.match(r'^B(\d+)%?$', line)
+        if m:
+            self._battery_level = max(0, min(100, int(m.group(1))))
+
+    # ─── Internal ─────────────────────────────────────────────────────────
+
+    def _send(self, cmd):
+        """Send command via UART."""
+        if self._uart.is_available:
+            return self._uart.write_command(cmd)
+        print(f"LED cmd (no UART): {cmd}")
         return False
 
     def close(self):
-        """Cleanup all resources."""
+        """Cleanup."""
+        self._running = False
         self.all_off()
-        self._i2c.close()
         self._uart.close()

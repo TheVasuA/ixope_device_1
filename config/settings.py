@@ -7,7 +7,7 @@ import math
 
 # ─── Device ───────────────────────────────────────────────────────────────────
 DEVICE_ID = "1001"
-SERVER_URL = "https://ixope-hub.com"
+SERVER_URL = "https://api.ixope-hub.com"  # API server (Cloudflare DNS → VPS)
 
 # ─── Display (480x480 Round Display) ─────────────────────────────────────────
 WINDOW_WIDTH = 480
@@ -64,14 +64,14 @@ BOOT_SPLASH_GIF = os.path.join(DEPLOY_PATH, "boot_logo.gif")
 
 SCOPE_IMAGE_FOLDERS = {
     'opth': os.path.join(IMAGE_BASE, "opth"),
-    'otto': os.path.join(IMAGE_BASE, "oto"),
+    'oto': os.path.join(IMAGE_BASE, "oto"),
     'derm': os.path.join(IMAGE_BASE, "derm"),
     'micro': os.path.join(IMAGE_BASE, "micro"),
 }
 
 SCOPE_VIDEO_FOLDERS = {
     'opth': os.path.join(VIDEO_BASE, "opth"),
-    'otto': os.path.join(VIDEO_BASE, "oto"),
+    'oto': os.path.join(VIDEO_BASE, "oto"),
     'derm': os.path.join(VIDEO_BASE, "derm"),
     'micro': os.path.join(VIDEO_BASE, "micro"),
 }
@@ -85,14 +85,21 @@ UART_PORT = "/dev/ttyS0"
 UART_BAUDRATE = 9600
 
 # ─── LED Configurations ──────────────────────────────────────────────────────
+# Protocol: *XY# where X=LED number (1-6), Y=brightness (0=off, 1-9=10%-90%)
+# Overall off: OF
+# Focus: L24 to L70 (maps to 0-100% liquid lens)
 LED_CONFIGS = {
-    5: {'name': 'BLUE LED', 'on_cmd': '*11', 'off_cmd': '*10', 'brightness_cmd': '*1{value}'},
-    6: {'name': 'MAIN LED', 'on_cmd': '*41', 'off_cmd': '*40', 'brightness_cmd': '*4{value}'},
-    7: {'name': 'NON-POLARIZED LED', 'on_cmd': '*21', 'off_cmd': '*20', 'brightness_cmd': '*2{value}'},
-    8: {'name': 'POLARIZED LED', 'on_cmd': '*31', 'off_cmd': '*30', 'brightness_cmd': '*3{value}'},
-    11: {'name': 'NEW NON-POLARIZED LED', 'on_cmd': '*21', 'off_cmd': '*20', 'brightness_cmd': '*2{value}'},
-    12: {'name': 'NEW POLARIZED LED', 'on_cmd': '*31', 'off_cmd': '*30', 'brightness_cmd': '*3{value}'},
+    1: {'name': 'White LED 1',  'uart_prefix': '1', 'off_cmd': '*10#', 'brightness_cmd': '*1{value}#'},
+    2: {'name': 'White LED 2',  'uart_prefix': '2', 'off_cmd': '*20#', 'brightness_cmd': '*2{value}#'},
+    3: {'name': 'Blue LED',     'uart_prefix': '3', 'off_cmd': '*30#', 'brightness_cmd': '*3{value}#'},
+    4: {'name': 'POL LED',      'uart_prefix': '4', 'off_cmd': '*40#', 'brightness_cmd': '*4{value}#'},
+    5: {'name': 'NON POL LED',  'uart_prefix': '5', 'off_cmd': '*50#', 'brightness_cmd': '*5{value}#'},
+    6: {'name': 'LATERAL LED',  'uart_prefix': '6', 'off_cmd': '*60#', 'brightness_cmd': '*6{value}#'},
 }
+LED_ALL_OFF_CMD = "OF"
+FOCUS_CMD_PREFIX = "L"           # L24 to L70
+FOCUS_MIN = 24
+FOCUS_MAX = 70
 
 # ─── Flask ────────────────────────────────────────────────────────────────────
 FLASK_HOST = '0.0.0.0'

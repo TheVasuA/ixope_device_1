@@ -21,6 +21,10 @@ unclutter -idle 0.1 -root &
 # Set CPU governor to performance (if available)
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null
 
+# Start compositor for iOS-style window transparency
+# Without this, Tkinter -alpha has no effect on X11.
+picom --backend xrender --no-fading --no-shadow --vsync &
+
 # Start the application
 cd /home/radxa/Documents/ixope
 exec python3 -m ixope.app

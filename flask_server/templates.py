@@ -1135,7 +1135,7 @@ INDEX_HTML = f"""<!DOCTYPE html>
     </div>
 </div>
 <script>
-['opth','otto','derm','micro'].forEach(s => {{
+['opth','oto','derm','micro'].forEach(s => {{
     fetch(`/scope/${{s}}/stats`).then(r=>r.json()).then(d => {{
         document.getElementById(s+'-stats').textContent =
             `${{d.images}} image${{d.images===1?'':'s'}} · ${{d.videos}} video${{d.videos===1?'':'s'}}`;
@@ -1170,7 +1170,7 @@ IMAGES_HTML = f"""<!DOCTYPE html>
         <div class="tabs" id="scope-tabs">
             <div class="tab active" data-scope="all"   onclick="filterScope(event,'all')">All</div>
             <div class="tab"        data-scope="opth"  onclick="filterScope(event,'opth')">Opth</div>
-            <div class="tab"        data-scope="otto"  onclick="filterScope(event,'otto')">Oto</div>
+            <div class="tab"        data-scope="oto"  onclick="filterScope(event,'oto')">Oto</div>
             <div class="tab"        data-scope="derm"  onclick="filterScope(event,'derm')">Derm</div>
             <div class="tab"        data-scope="micro" onclick="filterScope(event,'micro')">Micro</div>
         </div>

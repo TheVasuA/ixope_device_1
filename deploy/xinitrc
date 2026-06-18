@@ -15,6 +15,10 @@ unclutter -idle 0.1 -root &
 # Performance CPU governor (ignored if not permitted)
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null
 
+# Start compositor for window transparency (iOS-style frosted overlay)
+# Required for -alpha to work on Tkinter Toplevel windows.
+picom --backend xrender --no-fading --no-shadow --vsync &
+
 # The early framebuffer logo (if running) is killed here so the app's own
 # boot splash takes over seamlessly.
 sudo pkill -x fbi 2>/dev/null

@@ -93,14 +93,15 @@ class FileManager:
                 callback(False, None)
 
     def _upload_image(self, file_path, scope_name):
-        """Upload image to server."""
+        """Upload image to IXOPE server."""
         try:
-            url = f"{settings.SERVER_URL}/upload.php?id={settings.DEVICE_ID}"
+            url = f"{settings.SERVER_URL}/captures/images?id={settings.DEVICE_ID}&scope={scope_name or 'general'}"
+            filename = os.path.basename(file_path)
             with open(file_path, 'rb') as f:
-                files = {'file': (f'{scope_name}.jpg', f)}
+                files = {'file': (filename, f, 'image/jpeg')}
                 resp = requests.post(url, files=files, timeout=30)
                 if resp.status_code == 200:
-                    print(f"Upload OK: {os.path.basename(file_path)}")
+                    print(f"Upload OK: {filename}")
                 else:
                     print(f"Upload failed: {resp.status_code}")
         except requests.exceptions.ConnectionError:
@@ -125,13 +126,35 @@ class FileManager:
     def _upload_video_worker(self, video_path, scope_name, callback):
         """Worker for video upload."""
         try:
-            url = f"{settings.SERVER_URL}/upload1.php?id={settings.DEVICE_ID}"
+            # Check file exists and has content
+            if not os.path.exists(video_path) or os.path.getsize(video_path) < 1000:
+                print(f"Video upload skipped: file missing or too small ({video_path})")
+                if callback:
+                    callback(False)
+                return
+
+            url = f"{settings.SERVER_URL}/captures/videos?id={settings.DEVICE_ID}&scope={scope_name or 'general'}"
+            filename = os.path.basename(video_path)
+            filesize = os.path.getsize(video_path)
+            print(f"Video uploading: {filename} ({filesize} bytes) → {url}")
             with open(video_path, 'rb') as f:
-                files = {'file': (f'{scope_name}.mp4', f)}
-                resp = requests.post(url, files=files, timeout=120)
+                files = {'file': (filename, f, 'video/mp4')}
+                resp = requests.post(url, files=files, timeout=180)
                 success = resp.status_code == 200
+                if success:
+                    print(f"Video upload OK: {filename}")
+                else:
+                    print(f"Video upload failed: HTTP {resp.status_code}")
                 if callback:
                     callback(success)
+        except requests.exceptions.ConnectionError:
+            print("Video upload: no network connection")
+            if callback:
+                callback(False)
+        except requests.exceptions.Timeout:
+            print("Video upload: timeout (file too large or slow network)")
+            if callback:
+                callback(False)
         except Exception as e:
             print(f"Video upload error: {e}")
             if callback:

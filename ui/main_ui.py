@@ -41,7 +41,7 @@ class MedicalUI:
         self.root = root
         self.root.title("IXOPE Medical")
         self.root.geometry(f"{settings.WINDOW_WIDTH}x{settings.WINDOW_HEIGHT}")
-        self.root.configure(bg="black")
+        self.root.configure(bg="black", cursor="none")
         self.root.overrideredirect(True)
 
         # Resolve SF Pro font now that Tk is running
@@ -166,10 +166,18 @@ class MedicalUI:
             text="", fill="red", font=("Arial", 12, "bold")
         )
 
-        # Temp message text
+        # Temp message text — with dark outline for visibility over camera
+        msg_x = settings.WINDOW_WIDTH // 2
+        msg_y = settings.WINDOW_HEIGHT // 2
+        msg_font = ("Arial", 16, "bold")
+        self._msg_outline_items = []
+        for dx, dy in [(-2,0),(2,0),(0,-2),(0,2),(-1,-1),(1,-1),(-1,1),(1,1)]:
+            item = self.canvas.create_text(msg_x + dx, msg_y + dy,
+                                          text="", fill="black", font=msg_font)
+            self._msg_outline_items.append(item)
         self._msg_text = self.canvas.create_text(
-            settings.WINDOW_WIDTH // 2, settings.WINDOW_HEIGHT // 2,
-            text="", fill="white", font=(_windows_mod._SF_FONT, 16, "bold")
+            msg_x, msg_y,
+            text="", fill="white", font=msg_font
         )
         self._msg_timer = None
 
@@ -186,7 +194,13 @@ class MedicalUI:
         # ─── Bindings ─────────────────────────────────────────────────────
         self.canvas.bind("<Button-1>", self._on_click)
         self.canvas.bind("<B1-Motion>", self._on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.root.bind("<Escape>", lambda e: self._shutdown())
+
+        # Scroll events for zoom (works if touch driver translates pinch)
+        self.canvas.bind("<Button-4>", self._on_zoom_in)
+        self.canvas.bind("<Button-5>", self._on_zoom_out)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
 
         # ─── Start subsystems ─────────────────────────────────────────────
         self._camera.start()
@@ -375,21 +389,21 @@ class MedicalUI:
         # Title
         try:
             from PIL import ImageFont
-            title_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
-            label_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
-            pct_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 20)
-            btn_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
+            title_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 36)
+            label_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
+            pct_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 26)
+            btn_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 26)
         except Exception:
             try:
-                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-                label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-                pct_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-                btn_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+                label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+                pct_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+                btn_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
             except Exception:
                 title_font = label_font = pct_font = btn_font = None
 
         # Title text with outline
-        title_y = (base_y - 30) * scale
+        title_y = (base_y - 45) * scale
         if title_font:
             bbox = d.textbbox((0, 0), "Camera Settings", font=title_font)
             tw = bbox[2] - bbox[0]
@@ -400,18 +414,17 @@ class MedicalUI:
                 d.text((tx + ox, ty + oy), "Camera Settings",
                        fill=(0, 0, 0, 200), font=title_font)
             d.text((tx, ty), "Camera Settings",
-                   fill=(255, 220, 60, 255), font=title_font)
+                   fill=(255, 255, 255, 255), font=title_font)
 
-        # Colors — use bright yellow-green for labels (visible on any camera content)
-        # with dark outline for contrast
-        label_col = (255, 220, 60, 255)      # warm yellow — never lost in the feed
-        pct_col = (0, 200, 255, 255)         # cyan for percentages
+        # Colors — white text with dark outline (works on any theme/camera)
+        label_col = (255, 255, 255, 255)      # pure white labels
+        pct_col = (0, 200, 255, 255)          # cyan for percentages
         accent = (0, 200, 255, 255)
         track_bg = (58, 63, 85, 220)
         white = (255, 255, 255, 255)
-        outline_col = (0, 0, 0, 200)         # dark outline for text stroke
-        track_h = 10 * scale
-        handle_r = 14 * scale
+        outline_col = (0, 0, 0, 220)          # dark outline for text stroke
+        track_h = 4 * scale                   # slim track
+        handle_r = 8 * scale                 # compact handle
 
         for row, name in enumerate(order):
             y = (base_y + row * spacing) * scale
@@ -501,16 +514,18 @@ class MedicalUI:
         self._slider_save_z = (sx_1x - 55, btn_y_1x - 17, sx_1x + 55, btn_y_1x + 17)
 
     def _poll_battery(self):
-        """Read the system battery level and update the icon if it changed.
+        """Read battery level from the MCU (via UART) and update the icon.
 
-        Reads Linux sysfs (`/sys/class/power_supply/*/capacity`) which the
-        Radxa exposes when a fuel gauge / charger driver is present. On
-        machines without a battery this simply does nothing and the icon
-        keeps its last known value.
+        The LEDController's background RX thread parses 'B___%' messages
+        from the MCU and stores the value. We just read it here.
+        Falls back to sysfs if no MCU battery data is available.
         """
-        level = self._read_battery_capacity()
+        # Primary source: MCU via UART
+        level = self._leds.get_battery()
+        # Fallback: Linux sysfs (if a power_supply driver exists)
+        if level is None:
+            level = self._read_battery_capacity()
         if level is not None and self._icons.set_battery_level(level):
-            # Force the on-canvas battery image to refresh next frame
             item = self._icon_items[13] if len(self._icon_items) > 13 else None
             if item is not None:
                 try:
@@ -554,6 +569,10 @@ class MedicalUI:
 
         x, y = event.x, event.y
 
+        # Ignore taps in the right-edge zoom zone (those are zoom drags)
+        if x > settings.WINDOW_WIDTH - 60 and not self._sliders.visible:
+            return
+
         # If UI is hidden, restore it
         if self.ui_hidden:
             self._restore_ui()
@@ -581,7 +600,7 @@ class MedicalUI:
                 if x1 <= x <= x2 and y1 <= y <= y2:
                     self._save_camera_prefs()
                     self._toggle_sliders()  # close sliders after save
-                    self._show_message("SAVED ✓", "green", duration=1000)
+                    self._show_message("SAVED ✓", "#87CEEB", duration=1000)
                     return
 
         # Check focus zones (invisible)
@@ -605,9 +624,52 @@ class MedicalUI:
         self._reset_hide_timer()
 
     def _on_drag(self, event):
-        """Handle drag for sliders."""
+        """Handle drag for sliders OR right-edge zoom gesture."""
         if self._sliders.visible:
             self._sliders.handle_drag(event.x, event.y)
+            return
+
+        # Right-edge vertical drag = zoom control (works on any touchscreen)
+        # Zone: right 60px of the screen, only when icons are visible (not in a window)
+        if not getattr(self, '_window_open', False) and event.x > settings.WINDOW_WIDTH - 60:
+            if not hasattr(self, '_zoom_drag_y'):
+                self._zoom_drag_y = event.y
+            else:
+                dy = self._zoom_drag_y - event.y  # drag up = zoom in
+                if abs(dy) > 3:
+                    self._adjust_zoom(dy * 0.003)  # smooth: 3px = ~1% zoom
+                    self._zoom_drag_y = event.y
+
+    def _on_release(self, event):
+        """Clear drag state on finger lift."""
+        if hasattr(self, '_zoom_drag_y'):
+            del self._zoom_drag_y
+
+    def _on_zoom_in(self, event):
+        """Pinch zoom in (Linux scroll up / Button-4)."""
+        self._adjust_zoom(+0.05)
+
+    def _on_zoom_out(self, event):
+        """Pinch zoom out (Linux scroll down / Button-5)."""
+        self._adjust_zoom(-0.05)
+
+    def _on_mousewheel(self, event):
+        """Mouse wheel zoom (Windows). delta > 0 = zoom in."""
+        if event.delta > 0:
+            self._adjust_zoom(+0.05)
+        else:
+            self._adjust_zoom(-0.05)
+
+    def _adjust_zoom(self, delta):
+        """Adjust camera zoom smoothly. Range: 0.0 (1x) to 1.0 (4x)."""
+        if getattr(self, '_window_open', False):
+            return
+        current = self._sliders.values['zoom']
+        new_val = max(0.0, min(1.0, current + delta))
+        if new_val != current:
+            self._sliders.values['zoom'] = new_val
+            zoom_level = 1.0 + new_val * 3.0
+            self._show_message(f"ZOOM: {zoom_level:.1f}x", "#00c8ff", duration=800)
 
     def _handle_icon_tap(self, index):
         """Process icon tap by index. Shows press feedback (cyan glow + magnification)."""
@@ -781,7 +843,7 @@ class MedicalUI:
 
         def on_saved(success, path):
             if success:
-                self.root.after(0, lambda: self._show_message("CAPTURED ✓", "green"))
+                self.root.after(0, lambda: self._show_message("CAPTURED ✓", "#87CEEB"))
             else:
                 self.root.after(0, lambda: self._show_message("SAVE FAILED", "red"))
 
@@ -801,21 +863,29 @@ class MedicalUI:
             success = self._recorder.start(self.current_scope)
             if success:
                 self._show_message("● RECORDING", "red", duration=1500)
-                # Auto-stop after max duration
-                self.root.after(
+                # Cancel any stale auto-stop timer from a previous recording
+                if hasattr(self, '_rec_timer') and self._rec_timer:
+                    self.root.after_cancel(self._rec_timer)
+                # Fresh 10s auto-stop timer for THIS recording
+                self._rec_timer = self.root.after(
                     settings.MAX_RECORD_SECONDS * 1000,
                     self._auto_stop_recording
                 )
             else:
                 self._show_message("RECORD FAILED", "red")
         else:
+            # Manual stop — cancel the auto-stop timer
+            if hasattr(self, '_rec_timer') and self._rec_timer:
+                self.root.after_cancel(self._rec_timer)
+                self._rec_timer = None
             path = self._recorder.stop()
-            self._show_message("SAVED ✓", "green")
+            self._show_message("SAVED ✓", "#87CEEB")
             if path:
                 self._files.upload_video(path, self.current_scope)
 
     def _auto_stop_recording(self):
         """Auto-stop recording after max duration."""
+        self._rec_timer = None
         if self._recorder.is_recording:
             path = self._recorder.stop()
             self._show_message("REC COMPLETE", "green")
@@ -868,11 +938,17 @@ class MedicalUI:
     # ═══════════════════════════════════════════════════════════════════════
 
     def _show_message(self, text, color="white", duration=2000):
-        """Show temporary message on screen."""
+        """Show temporary message on screen with dark outline for visibility."""
         self.canvas.itemconfig(self._msg_text, text=text, fill=color)
+        for item in self._msg_outline_items:
+            self.canvas.itemconfig(item, text=text)
         if self._msg_timer:
             self.root.after_cancel(self._msg_timer)
-        self._msg_timer = self.root.after(duration, lambda: self.canvas.itemconfig(self._msg_text, text=""))
+        def _clear():
+            self.canvas.itemconfig(self._msg_text, text="")
+            for item in self._msg_outline_items:
+                self.canvas.itemconfig(item, text="")
+        self._msg_timer = self.root.after(duration, _clear)
 
     def _reset_hide_timer(self):
         """Reset the auto-hide timer for UI elements."""
