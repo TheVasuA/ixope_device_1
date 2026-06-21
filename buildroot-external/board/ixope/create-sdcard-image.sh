@@ -65,8 +65,8 @@ dd if=/dev/zero of="$OUTPUT_IMG" bs=1M count=$IMG_SIZE_MB status=none
 
 echo "[2/6] Writing partition table (GPT)..."
 parted -s "$OUTPUT_IMG" mklabel gpt
-parted -s "$OUTPUT_IMG" mkpart rootfs ext4 ${ROOTFS_START_MB}MiB ${ROOTFS_END_MB}MiB
-parted -s "$OUTPUT_IMG" mkpart data ext4 ${DATA_START_MB}MiB ${DATA_END_MB}MiB
+parted -s "$OUTPUT_IMG" mkpart rootfs ext4 ${ROOTFS_START_MB}MB ${ROOTFS_END_MB}MB
+parted -s "$OUTPUT_IMG" mkpart data ext4 ${DATA_START_MB}MB 100%
 
 echo "[3/6] Writing U-Boot bootloader (at 32KB offset)..."
 dd if="$UBOOT" of="$OUTPUT_IMG" seek=64 bs=512 conv=notrunc status=none
