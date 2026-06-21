@@ -78,35 +78,41 @@ Output files at `~/buildroot/output/images/`:
 
 ---
 
-## Step 6: Flash to the device
+## Step 6: Create a ready-to-flash image (ONE FILE — send to anyone)
 
-### Option A: Flash to SD card (easiest to start)
+After the build completes, run this ONE script to produce a complete SD card image:
+
+```bash
+bash ~/ixope/buildroot-external/board/ixope/create-sdcard-image.sh
+```
+
+Output:
+```
+output/images/ixope-sdcard.img      ← raw image (~528MB)
+output/images/ixope-sdcard.img.gz   ← compressed (~100-150MB, send THIS)
+```
+
+**Send `ixope-sdcard.img.gz` to your friend. That's it.**
+
+### Your friend flashes it (no build tools needed):
+
+| OS | How to flash |
+|----|--------------|
+| **Windows** | Download [Balena Etcher](https://etcher.balena.io/). Drag the `.img.gz` file in. Select SD card. Click Flash. |
+| **Linux** | `gunzip ixope-sdcard.img.gz && sudo dd if=ixope-sdcard.img of=/dev/sdX bs=4M status=progress` |
+| **Mac** | `gunzip ixope-sdcard.img.gz && sudo dd if=ixope-sdcard.img of=/dev/diskN bs=4m` |
+
+Then: **put SD card in device → power on → logo appears in 0.5s → app ready in ~5s.**
+
+---
+
+### (Alternative) Flash to SD card manually
 
 ```bash
 # Insert SD card into your build machine
-# Find the device name:
-lsblk
-# Example: /dev/sdb (NEVER use /dev/sda — that's your PC!)
+lsblk   # find the device name (e.g. /dev/sdb — NEVER /dev/sda!)
 
-# Clear existing partition table
-sudo dd if=/dev/zero of=/dev/sdX bs=1M count=1
-sudo parted /dev/sdX mklabel gpt
-
-# Write U-Boot (raw, at sector 64 = 32KB offset)
-sudo dd if=output/images/u-boot-rockchip.bin of=/dev/sdX seek=64 conv=notrunc
-
-# Create rootfs partition (16MB to 272MB)
-sudo parted /dev/sdX mkpart rootfs ext4 16MiB 272MiB
-
-# Create data partition (272MB to end of card)
-sudo parted /dev/sdX mkpart data ext4 272MiB 100%
-
-# Write rootfs to partition 2
-sudo dd if=output/images/rootfs.ext4 of=/dev/sdX2 bs=4M status=progress
-
-# Format data partition
-sudo mkfs.ext4 -L ixope-data /dev/sdX3
-
+sudo dd if=output/images/ixope-sdcard.img of=/dev/sdX bs=4M status=progress
 sync
 ```
 

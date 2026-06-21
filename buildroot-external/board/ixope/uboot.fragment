@@ -1,0 +1,21 @@
+# IXOPE U-Boot Config Fragment — Fast Boot
+# No delay, no USB scan, immediate kernel load
+
+# Zero boot delay — don't wait for user input
+CONFIG_BOOTDELAY=0
+CONFIG_AUTOBOOT=y
+
+# Disable USB scanning at boot (saves ~2-3 seconds)
+# CONFIG_USB_HOST is not set for boot scanning
+CONFIG_CMD_USB=n
+CONFIG_USB_STORAGE=n
+CONFIG_USB_KEYBOARD=n
+
+# Don't scan for boot devices we don't use
+# CONFIG_CMD_PXE is not set
+# CONFIG_CMD_DHCP is not set
+# CONFIG_DISTRO_DEFAULTS is not set
+
+# Skip unnecessary device probing
+CONFIG_SYS_BOOT_GET_CMDLINE=n
+CONFIG_SYS_BOOT_GET_KBD=n

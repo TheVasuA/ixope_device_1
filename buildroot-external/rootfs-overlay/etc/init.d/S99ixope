@@ -1,70 +1,29 @@
 #!/bin/sh
-#
-# IXOPE Medical Device — start the application directly on boot
-# This is the LAST init script to run (S99), ensuring all hardware
-# (display, camera, I2C, WiFi) is ready before the app starts.
-#
-
-IXOPE_DIR="/opt/ixope"
-DATA_DIR="/var/ixope-data"
-LOGFILE="$DATA_DIR/logs/boot.log"
-
 case "$1" in
   start)
-    echo "Starting IXOPE Medical Device..."
-
-    # Ensure data directories exist
-    mkdir -p "$DATA_DIR/logs" "$DATA_DIR/captured_images" "$DATA_DIR/recorded_videos"
-
-    # Set environment
+    mkdir -p /var/ixope-data/logs /var/ixope-data/captured_images /var/ixope-data/recorded_videos
     export DISPLAY=:0
-    export IXOPE_BASE_PATH="$DATA_DIR"
+    export IXOPE_BASE_PATH=/var/ixope-data
     export HOME=/root
 
-    # Disable screen blanking
-    xset s off 2>/dev/null
-    xset -dpms 2>/dev/null
-    xset s noblank 2>/dev/null
+    # Show splash screen while app loads
+    python3 /opt/ixope/splash.py &
+    SPLASH_PID=$!
 
-    # Hide cursor
-    unclutter -idle 0.1 -root &
+    # Wait for X to be ready
+    sleep 2
 
-    # Set CPU governor to performance
-    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-      echo performance > "$cpu" 2>/dev/null
-    done
-
-    # Start X server in background (minimal, no window manager)
-    if ! pgrep -x Xorg > /dev/null; then
-      Xorg :0 -nolisten tcp -nocursor vt1 &
-      sleep 0.5
-    fi
-
-    # Launch the application
-    cd "$IXOPE_DIR"
-    python3 -m ixope.app >> "$LOGFILE" 2>&1 &
+    # Launch the application (kills splash when ready)
+    cd /opt/ixope
+    kill $SPLASH_PID 2>/dev/null
+    python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
     echo $! > /var/run/ixope.pid
     ;;
-
   stop)
-    echo "Stopping IXOPE..."
-    if [ -f /var/run/ixope.pid ]; then
-      kill $(cat /var/run/ixope.pid) 2>/dev/null
-      rm -f /var/run/ixope.pid
-    fi
-    killall -q Xorg
+    [ -f /var/run/ixope.pid ] && kill $(cat /var/run/ixope.pid) 2>/dev/null
+    rm -f /var/run/ixope.pid
     ;;
-
   restart)
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-
-  *)
-    echo "Usage: $0 {start|stop|restart}"
-    exit 1
+    $0 stop; sleep 1; $0 start
     ;;
 esac
-
-exit 0

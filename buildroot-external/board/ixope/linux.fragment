@@ -1,0 +1,97 @@
+# IXOPE Kernel Config Fragment — Display + Hardware
+# ═══════════════════════════════════════════════════════════════
+# DRM/Display — MIPI DSI panel (ST7701S 480x480)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_DRM=y
+CONFIG_DRM_ROCKCHIP=y
+CONFIG_DRM_PANEL=y
+CONFIG_DRM_PANEL_SIMPLE=y
+CONFIG_DRM_PANEL_SITRONIX_ST7701=y
+CONFIG_DRM_BRIDGE=y
+CONFIG_DRM_DW_MIPI_DSI=y
+CONFIG_DRM_DW_HDMI=y
+CONFIG_ROCKCHIP_VOP2=y
+CONFIG_ROCKCHIP_DW_MIPI_DSI=y
+CONFIG_PHY_ROCKCHIP_INNO_HDMI=y
+CONFIG_PHY_ROCKCHIP_INNO_DSIDPHY=y
+CONFIG_DRM_FBDEV_EMULATION=y
+CONFIG_FB=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+CONFIG_BACKLIGHT_CLASS_DEVICE=y
+CONFIG_BACKLIGHT_PWM=y
+
+# ═══════════════════════════════════════════════════════════════
+# V4L2 / USB Camera
+# ═══════════════════════════════════════════════════════════════
+CONFIG_MEDIA_SUPPORT=y
+CONFIG_VIDEO_DEV=y
+CONFIG_VIDEO_V4L2=y
+CONFIG_USB_VIDEO_CLASS=y
+CONFIG_VIDEOBUF2_VMALLOC=y
+
+# ═══════════════════════════════════════════════════════════════
+# USB (for camera + peripherals)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_USB=y
+CONFIG_USB_DWC3=y
+CONFIG_USB_DWC3_GENERIC=y
+CONFIG_USB_EHCI_HCD=y
+CONFIG_USB_OHCI_HCD=y
+CONFIG_USB_XHCI_HCD=y
+CONFIG_PHY_ROCKCHIP_INNO_USB2=y
+
+# ═══════════════════════════════════════════════════════════════
+# I2C (LED controller + touch panel)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_I2C=y
+CONFIG_I2C_RK3X=y
+CONFIG_I2C_CHARDEV=y
+
+# ═══════════════════════════════════════════════════════════════
+# UART/Serial
+# ═══════════════════════════════════════════════════════════════
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_DW=y
+CONFIG_SERIAL_8250_CONSOLE=y
+
+# ═══════════════════════════════════════════════════════════════
+# WiFi (BCM43xx on Radxa Zero 3W)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_WLAN=y
+CONFIG_CFG80211=y
+CONFIG_MAC80211=y
+CONFIG_BRCMUTIL=m
+CONFIG_BRCMFMAC=m
+CONFIG_BRCMFMAC_SDIO=y
+
+# ═══════════════════════════════════════════════════════════════
+# GPU (Panfrost for Mali G52)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_DRM_PANFROST=y
+
+# ═══════════════════════════════════════════════════════════════
+# PWM (backlight control for panel)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_PWM=y
+CONFIG_PWM_ROCKCHIP=y
+
+# ═══════════════════════════════════════════════════════════════
+# RTC + Power
+# ═══════════════════════════════════════════════════════════════
+CONFIG_RTC_CLASS=y
+CONFIG_RTC_DRV_RK808=y
+CONFIG_REGULATOR=y
+CONFIG_REGULATOR_RK808=y
+CONFIG_REGULATOR_FAN53555=y
+CONFIG_MFD_RK8XX_I2C=y
+
+# ═══════════════════════════════════════════════════════════════
+# GPIO (for panel reset pin)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_GPIOLIB=y
+CONFIG_GPIO_ROCKCHIP=y
+
+# ═══════════════════════════════════════════════════════════════
+# Device Tree Overlays support
+# ═══════════════════════════════════════════════════════════════
+CONFIG_OF_OVERLAY=y

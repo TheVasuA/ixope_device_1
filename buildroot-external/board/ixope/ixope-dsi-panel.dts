@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Device tree overlay for IXOPE YX21002ACT 480x480 MIPI DSI panel (ST7701S)
+// on Radxa Zero 3W (RK3566)
+//
+// Panel specs:
+//   - 2.1 inch round IPS TFT-LCD
+//   - 480(RGB) x 480 resolution
+//   - ST7701S controller IC
+//   - 2-lane MIPI DSI interface
+//   - VCI: 2.8V, IOVCC: 1.8V
+
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	backlight_dsi: backlight-dsi {
+		compatible = "gpio-backlight";
+		/* Adjust GPIO if your backlight enable is on a different pin */
+		/* For direct LED drive via constant current, this may not be needed */
+		status = "okay";
+	};
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	panel@0 {
+		compatible = "sitronix,st7701";
+		reg = <0>;
+		/* Reset GPIO — adjust pin as needed for your board wiring */
+		reset-gpios = <&gpio0 5 1>; /* GPIO0_A5, active low — verify on your PCB */
+		/* Power supplies */
+		VCC-supply = <&vcc_3v3>;
+		IOVCC-supply = <&vcc_3v3>;
+
+		port {
+			panel_in_dsi: endpoint {
+				remote-endpoint = <&dsi0_out_panel>;
+			};
+		};
+	};
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			dsi0_out_panel: endpoint {
+				remote-endpoint = <&panel_in_dsi>;
+			};
+		};
+	};
+};
+
+&dsi0_in_vp1 {
+	status = "okay";
+};
+
+&video_phy0 {
+	status = "okay";
+};
+
+&route_dsi0 {
+	status = "okay";
+	connect = <&vp1_out_dsi0>;
+};

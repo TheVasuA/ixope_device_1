@@ -1,0 +1,21 @@
+#!/bin/sh
+# Show IXOPE splash on framebuffer at boot
+case "$1" in
+  start)
+    export DISPLAY=:0
+    python3 -c "
+import struct, os
+try:
+    fb = open('/dev/fb0', 'wb')
+    # 480x480 ARGB - fill black
+    black = b'\x00\x00\x00\xff' * (480 * 480)
+    fb.write(black)
+    fb.close()
+except:
+    pass
+" 2>/dev/null &
+    # Also show on console as fallback
+    echo -e "\033[2J\033[H\033[?25l" > /dev/tty1
+    echo -e "\n\n\n\n\n\n\n\n\n          IXOPE\n\n        Loading..." > /dev/tty1
+    ;;
+esac

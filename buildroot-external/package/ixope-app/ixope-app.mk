@@ -5,7 +5,7 @@
 ################################################################################
 
 IXOPE_APP_VERSION = 1.0
-IXOPE_APP_SITE = $(BR2_EXTERNAL_IXOPE_PATH)/../
+IXOPE_APP_SITE = $(BR2_EXTERNAL_IXOPE_PATH)/..
 IXOPE_APP_SITE_METHOD = local
 IXOPE_APP_SETUP_TYPE = none
 
@@ -16,7 +16,7 @@ IXOPE_APP_DEPENDENCIES = \
 	python-flask \
 	python-requests \
 	opencv4 \
-	xserver-xorg \
+	xserver_xorg-server \
 	xlib_libX11
 
 define IXOPE_APP_INSTALL_TARGET_CMDS
