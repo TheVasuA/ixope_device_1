@@ -26,7 +26,7 @@ FRAME_QUEUE_SIZE = 2  # Keep only latest frames, drop old ones
 
 # ─── Recording ────────────────────────────────────────────────────────────────
 MAX_RECORD_SECONDS = 10
-VIDEO_CODECS = ['mp4v', 'avc1', 'X264', 'MJPG', 'XVID']
+VIDEO_CODECS = ['avc1', 'X264', 'H264', 'mp4v', 'MJPG', 'XVID']
 VIDEO_FPS = 30
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
