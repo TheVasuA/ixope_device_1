@@ -58,10 +58,10 @@ IMG_SIZE_MB=784
 ROOTFS_START_MB=16
 ROOTFS_END_MB=528
 DATA_START_MB=528
-DATA_END_MB=$IMG_SIZE_MB
+DATA_END_MB=$((IMG_SIZE_MB - 1))
 
 echo "[1/6] Creating empty ${IMG_SIZE_MB}MB image..."
-dd if=/dev/zero of="$OUTPUT_IMG" bs=1M count=0 seek=$IMG_SIZE_MB status=none
+dd if=/dev/zero of="$OUTPUT_IMG" bs=1M count=$IMG_SIZE_MB status=none
 
 echo "[2/6] Writing partition table (GPT)..."
 parted -s "$OUTPUT_IMG" mklabel gpt
