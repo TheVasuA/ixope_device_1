@@ -1,4 +1,4 @@
-# IXOPE Kernel Config Fragment — Display + Hardware
+# IXOPE Kernel Config Fragment — Radxa BSP 5.10 kernel
 # ═══════════════════════════════════════════════════════════════
 # DRM/Display — MIPI DSI panel (ST7701S 480x480) + HDMI
 # ═══════════════════════════════════════════════════════════════
@@ -37,7 +37,6 @@ CONFIG_USB=y
 CONFIG_USB_SUPPORT=y
 CONFIG_USB_DWC3=y
 CONFIG_USB_DWC3_GENERIC=y
-CONFIG_USB_DWC3_OF_SIMPLE=y
 CONFIG_USB_EHCI_HCD=y
 CONFIG_USB_EHCI_HCD_PLATFORM=y
 CONFIG_USB_OHCI_HCD=y
@@ -45,12 +44,7 @@ CONFIG_USB_OHCI_HCD_PLATFORM=y
 CONFIG_USB_XHCI_HCD=y
 CONFIG_USB_XHCI_PLATFORM=y
 CONFIG_PHY_ROCKCHIP_INNO_USB2=y
-CONFIG_PHY_ROCKCHIP_NANENG_COMBO_PHY=y
-CONFIG_TYPEC=y
-CONFIG_USB_ROLE_SWITCH=y
-CONFIG_USB_DWC3_DUAL_ROLE=y
 CONFIG_EXTCON=y
-CONFIG_EXTCON_USB_GPIO=y
 
 # ═══════════════════════════════════════════════════════════════
 # I2C (LED controller + touch panel)
@@ -98,7 +92,7 @@ CONFIG_REGULATOR_FAN53555=y
 CONFIG_MFD_RK8XX_I2C=y
 
 # ═══════════════════════════════════════════════════════════════
-# GPIO (for panel reset pin)
+# GPIO
 # ═══════════════════════════════════════════════════════════════
 CONFIG_GPIOLIB=y
 CONFIG_GPIO_ROCKCHIP=y

@@ -12,7 +12,7 @@ BR2_cortex_a55=y
 # ═══════════════════════════════════════════════════════════════════════
 BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 BR2_TOOLCHAIN_BUILDROOT_CXX=y
-BR2_KERNEL_HEADERS_6_12=y
+BR2_KERNEL_HEADERS_5_10=y
 BR2_PACKAGE_HOST_PYTHON3=y
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -26,16 +26,17 @@ BR2_INIT_BUSYBOX=y
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_IXOPE_PATH)/rootfs-overlay"
 
 # ═══════════════════════════════════════════════════════════════════════
-# KERNEL — Mainline 6.12 with DSI panel support
+# KERNEL — Radxa BSP 5.10 with full DSI panel support
 # ═══════════════════════════════════════════════════════════════════════
 BR2_LINUX_KERNEL=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12"
-BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG=y
+BR2_LINUX_KERNEL_CUSTOM_GIT=y
+BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/radxa/kernel.git"
+BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="linux-5.10-gen-rkr8-buildroot"
+BR2_LINUX_KERNEL_USE_DEFCONFIG=y
+BR2_LINUX_KERNEL_DEFCONFIG="rockchip_linux"
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/linux.fragment"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3566-radxa-zero-3w"
-BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/rk3566-radxa-zero-3w-ixope.dts"
 BR2_LINUX_KERNEL_INSTALL_TARGET=y
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 
