@@ -74,8 +74,8 @@ cat > "$TARGET_DIR/etc/init.d/S01cpufreq" << 'EOF'
 #!/bin/sh
 case "$1" in
   start)
-    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-      echo performance > "$cpu" 2>/dev/null
+    for gov in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor; do
+      [ -f "$gov" ] && echo performance > "$gov" 2>/dev/null
     done
     ;;
 esac

@@ -75,8 +75,9 @@ ROOTFS_OFFSET=$((ROOTFS_START_MB * 1024 * 1024))
 dd if="$ROOTFS" of="$OUTPUT_IMG" bs=1M seek=$ROOTFS_START_MB conv=notrunc status=none
 
 echo "[5/6] Creating empty data partition..."
-# Create a small ext4 filesystem for the data partition
-DATA_SIZE_MB=$((800 - DATA_START_MB))
+# Get actual partition size from parted output to avoid geometry mismatch
+# Use slightly smaller size to account for GPT/alignment overhead
+DATA_SIZE_MB=$((800 - DATA_START_MB - 2))
 dd if=/dev/zero of=/tmp/ixope-data.ext4 bs=1M count=$DATA_SIZE_MB status=none
 mkfs.ext4 -q -L "ixope-data" /tmp/ixope-data.ext4
 dd if=/tmp/ixope-data.ext4 of="$OUTPUT_IMG" bs=1M seek=$DATA_START_MB conv=notrunc status=none
