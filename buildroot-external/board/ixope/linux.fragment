@@ -1,6 +1,6 @@
 # IXOPE Kernel Config Fragment — Display + Hardware
 # ═══════════════════════════════════════════════════════════════
-# DRM/Display — MIPI DSI panel (ST7701S 480x480)
+# DRM/Display — MIPI DSI panel (ST7701S 480x480) + HDMI
 # ═══════════════════════════════════════════════════════════════
 CONFIG_DRM=y
 CONFIG_DRM_ROCKCHIP=y
@@ -12,6 +12,7 @@ CONFIG_DRM_DW_MIPI_DSI=y
 CONFIG_DRM_DW_HDMI=y
 CONFIG_ROCKCHIP_VOP2=y
 CONFIG_ROCKCHIP_DW_MIPI_DSI=y
+CONFIG_DRM_MIPI_DSI=y
 CONFIG_PHY_ROCKCHIP_INNO_HDMI=y
 CONFIG_PHY_ROCKCHIP_INNO_DSIDPHY=y
 CONFIG_DRM_FBDEV_EMULATION=y
