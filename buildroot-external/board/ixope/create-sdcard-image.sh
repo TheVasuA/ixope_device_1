@@ -54,19 +54,18 @@ echo "════════════════════════�
 # 272MB - 528MB | Partition 2: data (ext4, 256MB, formatted empty)
 # ──────────────────────────────────────────────────────────────────────
 
-IMG_SIZE_MB=784
+IMG_SIZE_MB=800
 ROOTFS_START_MB=16
 ROOTFS_END_MB=528
 DATA_START_MB=528
-DATA_END_MB=$((IMG_SIZE_MB - 1))
 
-echo "[1/6] Creating empty ${IMG_SIZE_MB}MB image..."
+echo "[1/6] Creating empty ${IMG_SIZE_MB}MiB image..."
 dd if=/dev/zero of="$OUTPUT_IMG" bs=1M count=$IMG_SIZE_MB status=none
 
 echo "[2/6] Writing partition table (GPT)..."
 parted -s "$OUTPUT_IMG" mklabel gpt
-parted -s "$OUTPUT_IMG" mkpart rootfs ext4 ${ROOTFS_START_MB}MB ${ROOTFS_END_MB}MB
-parted -s "$OUTPUT_IMG" mkpart data ext4 ${DATA_START_MB}MB 100%
+parted -s "$OUTPUT_IMG" mkpart rootfs ext4 ${ROOTFS_START_MB}MiB ${ROOTFS_END_MB}MiB
+parted -s "$OUTPUT_IMG" mkpart data ext4 ${DATA_START_MB}MiB 100%
 
 echo "[3/6] Writing U-Boot bootloader (at 32KB offset)..."
 dd if="$UBOOT" of="$OUTPUT_IMG" seek=64 bs=512 conv=notrunc status=none
@@ -77,7 +76,7 @@ dd if="$ROOTFS" of="$OUTPUT_IMG" bs=1M seek=$ROOTFS_START_MB conv=notrunc status
 
 echo "[5/6] Creating empty data partition..."
 # Create a small ext4 filesystem for the data partition
-DATA_SIZE_MB=$((DATA_END_MB - DATA_START_MB))
+DATA_SIZE_MB=$((800 - DATA_START_MB))
 dd if=/dev/zero of=/tmp/ixope-data.ext4 bs=1M count=$DATA_SIZE_MB status=none
 mkfs.ext4 -q -L "ixope-data" /tmp/ixope-data.ext4
 dd if=/tmp/ixope-data.ext4 of="$OUTPUT_IMG" bs=1M seek=$DATA_START_MB conv=notrunc status=none
