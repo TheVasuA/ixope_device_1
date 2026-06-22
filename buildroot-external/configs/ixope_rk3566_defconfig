@@ -107,6 +107,8 @@ BR2_PACKAGE_XCB_UTIL=y
 BR2_PACKAGE_FONTCONFIG=y
 BR2_PACKAGE_XLIB_LIBXT=y
 BR2_PACKAGE_ZLIB=y
+BR2_PACKAGE_DEJAVU=y
+BR2_PACKAGE_LIBERATION=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # NETWORKING (WiFi + nmcli)

@@ -50,6 +50,8 @@ chmod 755 "$TARGET_DIR/etc/init.d/rcS"
 cat > "$TARGET_DIR/etc/fstab" << 'EOF'
 # <device>      <mount>          <type>  <options>               <dump> <fsck>
 /dev/root       /                ext4    rw,noatime,nodiratime   0      1
+sysfs           /sys             sysfs   defaults                0      0
+proc            /proc            proc    defaults                0      0
 tmpfs           /tmp             tmpfs   defaults,nosuid,size=64M 0     0
 tmpfs           /var/run         tmpfs   defaults,nosuid,size=8M  0     0
 /dev/mmcblk1p2  /var/ixope-data  ext4    rw,noatime,nosuid       0      2
