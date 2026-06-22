@@ -107,5 +107,15 @@ fi
 
 echo "Post-build complete. Target boot: 2-5 seconds with logo."
 
+# ─── WiFi firmware NVRAM file for Radxa Zero 3W (AP6212/BCM43430) ──────
+# The brcmfmac driver looks for a board-specific NVRAM .txt file.
+# Create symlinks so it finds the AP6212 config for this board.
+mkdir -p "$TARGET_DIR/lib/firmware/brcm"
+if [ -f "$TARGET_DIR/lib/firmware/brcm/brcmfmac43430-sdio.AP6212.txt" ]; then
+    ln -sf brcmfmac43430-sdio.AP6212.txt \
+        "$TARGET_DIR/lib/firmware/brcm/brcmfmac43430-sdio.radxa,zero-3w.txt"
+    echo "WiFi: linked AP6212 NVRAM for Radxa Zero 3W."
+fi
+
 # ─── Ensure all init scripts are executable ────────────────────────────
 chmod +x "$TARGET_DIR"/etc/init.d/S* 2>/dev/null

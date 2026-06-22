@@ -33,12 +33,23 @@ CONFIG_VIDEOBUF2_VMALLOC=y
 # USB (for camera + peripherals)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_USB=y
+CONFIG_USB_SUPPORT=y
 CONFIG_USB_DWC3=y
 CONFIG_USB_DWC3_GENERIC=y
+CONFIG_USB_DWC3_OF_SIMPLE=y
 CONFIG_USB_EHCI_HCD=y
+CONFIG_USB_EHCI_HCD_PLATFORM=y
 CONFIG_USB_OHCI_HCD=y
+CONFIG_USB_OHCI_HCD_PLATFORM=y
 CONFIG_USB_XHCI_HCD=y
+CONFIG_USB_XHCI_PLATFORM=y
 CONFIG_PHY_ROCKCHIP_INNO_USB2=y
+CONFIG_PHY_ROCKCHIP_NANENG_COMBO_PHY=y
+CONFIG_TYPEC=y
+CONFIG_USB_ROLE_SWITCH=y
+CONFIG_USB_DWC3_DUAL_ROLE=y
+CONFIG_EXTCON=y
+CONFIG_EXTCON_USB_GPIO=y
 
 # ═══════════════════════════════════════════════════════════════
 # I2C (LED controller + touch panel)
@@ -55,13 +66,13 @@ CONFIG_SERIAL_8250_DW=y
 CONFIG_SERIAL_8250_CONSOLE=y
 
 # ═══════════════════════════════════════════════════════════════
-# WiFi (BCM43xx on Radxa Zero 3W)
+# WiFi (BCM43430/AP6212 on Radxa Zero 3W via SDIO)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_WLAN=y
 CONFIG_CFG80211=y
 CONFIG_MAC80211=y
-CONFIG_BRCMUTIL=m
-CONFIG_BRCMFMAC=m
+CONFIG_BRCMUTIL=y
+CONFIG_BRCMFMAC=y
 CONFIG_BRCMFMAC_SDIO=y
 
 # ═══════════════════════════════════════════════════════════════
