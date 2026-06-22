@@ -78,12 +78,13 @@ BR2_PACKAGE_PYTHON_REQUESTS=y
 BR2_PACKAGE_PYTHON_SMBUS2=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# OPENCV (headless, minimal — camera capture + video codec only)
+# OPENCV (with Python bindings for cv2)
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_OPENCV4=y
 BR2_PACKAGE_OPENCV4_LIB_IMGPROC=y
 BR2_PACKAGE_OPENCV4_LIB_VIDEOIO=y
 BR2_PACKAGE_OPENCV4_LIB_IMGCODECS=y
+BR2_PACKAGE_OPENCV4_LIB_PYTHON=y
 BR2_PACKAGE_OPENCV4_WITH_FFMPEG=y
 BR2_PACKAGE_OPENCV4_WITH_V4L=y
 
