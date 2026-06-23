@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 // IXOPE Medical Device — Radxa Zero 3W with ST7701S 480x480 DSI panel
-// Based on mainline rk3566-radxa-zero-3w.dts + DSI panel configuration
+// Uses official Radxa Zero 3W DTS as base (from radxa/kernel linux-5.10-gen-rkr8-buildroot)
 
 /dts-v1/;
 
@@ -8,27 +8,43 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/soc/rockchip,vop2.h>
 
-// Include the base Radxa Zero 3W device tree
+// Include the official Radxa Zero 3W device tree
 #include "rk3566-radxa-zero-3w.dts"
 
 / {
 	model = "IXOPE Medical Device (Radxa Zero 3W)";
+	compatible = "radxa,zero-3w", "rockchip,rk3566";
 
+	/* Panel backlight — GPIO-controlled enable */
 	backlight_dsi: backlight-dsi {
 		compatible = "gpio-backlight";
 		status = "okay";
 	};
 
-	panel_vdd: panel-vdd-regulator {
+	/* Panel VCI power — 2.8V fixed regulator */
+	panel_vci: panel-vci-regulator {
 		compatible = "regulator-fixed";
-		regulator-name = "panel_vdd";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
+		regulator-name = "panel_vci";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	/* Panel IOVCC power — 1.8V fixed regulator */
+	panel_iovcc: panel-iovcc-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "panel_iovcc";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 		regulator-boot-on;
 		regulator-always-on;
 	};
 };
 
+/* ═══════════════════════════════════════════════════════════════
+ * MIPI DSI0 — ST7701S 480x480 round panel
+ * ═══════════════════════════════════════════════════════════════ */
 &dsi0 {
 	status = "okay";
 	#address-cells = <1>;
@@ -65,8 +81,8 @@
 		reg = <0>;
 		backlight = <&backlight_dsi>;
 		reset-gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
-		VCC-supply = <&panel_vdd>;
-		IOVCC-supply = <&panel_vdd>;
+		VCC-supply = <&panel_vci>;
+		IOVCC-supply = <&panel_iovcc>;
 
 		port {
 			mipi_in_panel: endpoint {
@@ -76,13 +92,34 @@
 	};
 };
 
+/* MIPI D-PHY for DSI0 */
 &mipi_dphy0 {
 	status = "okay";
 };
 
+/* VOP2 — route VP1 to DSI0 for the panel */
 &vp1 {
 	vp1_out_dsi0: endpoint@ROCKCHIP_VOP2_EP_MIPI0 {
 		reg = <ROCKCHIP_VOP2_EP_MIPI0>;
 		remote-endpoint = <&dsi0_in_vp1>;
+	};
+};
+
+/* ═══════════════════════════════════════════════════════════════
+ * I2C — Touchscreen on I2C3 (adjust bus/address for your panel)
+ * ═══════════════════════════════════════════════════════════════ */
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	touchscreen@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <RK_PA6 4>; /* IRQ_TYPE_LEVEL_LOW */
+		reset-gpios = <&gpio0 RK_PA7 GPIO_ACTIVE_LOW>;
+		irq-gpios = <&gpio0 RK_PA6 GPIO_ACTIVE_HIGH>;
+		touchscreen-size-x = <480>;
+		touchscreen-size-y = <480>;
 	};
 };

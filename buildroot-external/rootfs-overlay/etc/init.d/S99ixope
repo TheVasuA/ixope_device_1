@@ -1,21 +1,31 @@
 #!/bin/sh
+# IXOPE Medical Device — Application startup script
 case "$1" in
   start)
-    mkdir -p /var/ixope-data/logs /var/ixope-data/captured_images /var/ixope-data/recorded_videos
+    # Create data directories (preserves existing content)
+    mkdir -p /var/ixope-data/logs
+    mkdir -p /var/ixope-data/captured_images/opth
+    mkdir -p /var/ixope-data/captured_images/oto
+    mkdir -p /var/ixope-data/captured_images/derm
+    mkdir -p /var/ixope-data/captured_images/micro
+    mkdir -p /var/ixope-data/recorded_videos/opth
+    mkdir -p /var/ixope-data/recorded_videos/oto
+    mkdir -p /var/ixope-data/recorded_videos/derm
+    mkdir -p /var/ixope-data/recorded_videos/micro
+
+    # Environment
     export DISPLAY=:0
     export IXOPE_BASE_PATH=/var/ixope-data
     export HOME=/root
 
-    # Show splash screen while app loads
-    python3 /opt/ixope/splash.py &
-    SPLASH_PID=$!
+    # Wait for X to be ready (max 5s)
+    for i in 1 2 3 4 5; do
+        xdpyinfo >/dev/null 2>&1 && break
+        sleep 1
+    done
 
-    # Wait for X to be ready
-    sleep 2
-
-    # Launch the application (kills splash when ready)
+    # Launch the application
     cd /opt/ixope
-    kill $SPLASH_PID 2>/dev/null
     python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
     echo $! > /var/run/ixope.pid
     ;;
@@ -24,6 +34,8 @@ case "$1" in
     rm -f /var/run/ixope.pid
     ;;
   restart)
-    $0 stop; sleep 1; $0 start
+    $0 stop
+    sleep 1
+    $0 start
     ;;
 esac

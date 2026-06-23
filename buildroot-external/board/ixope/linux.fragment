@@ -1,4 +1,6 @@
-# IXOPE Kernel Config Fragment — Radxa BSP 5.10 kernel
+# IXOPE Kernel Config Fragment — Official Radxa BSP 5.10 kernel
+# Applied on top of rockchip_linux_defconfig
+
 # ═══════════════════════════════════════════════════════════════
 # DRM/Display — MIPI DSI panel (ST7701S 480x480) + HDMI
 # ═══════════════════════════════════════════════════════════════
@@ -22,7 +24,12 @@ CONFIG_BACKLIGHT_CLASS_DEVICE=y
 CONFIG_BACKLIGHT_PWM=y
 
 # ═══════════════════════════════════════════════════════════════
-# V4L2 / USB Camera
+# GPU (Panfrost for Mali G52)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_DRM_PANFROST=y
+
+# ═══════════════════════════════════════════════════════════════
+# V4L2 / USB Camera (built-in, not modules)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_MEDIA_SUPPORT=y
 CONFIG_VIDEO_DEV=y
@@ -31,7 +38,7 @@ CONFIG_USB_VIDEO_CLASS=y
 CONFIG_VIDEOBUF2_VMALLOC=y
 
 # ═══════════════════════════════════════════════════════════════
-# USB (for camera + peripherals)
+# USB (for camera + peripherals — all built-in)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_USB=y
 CONFIG_USB_SUPPORT=y
@@ -54,6 +61,12 @@ CONFIG_I2C_RK3X=y
 CONFIG_I2C_CHARDEV=y
 
 # ═══════════════════════════════════════════════════════════════
+# Touchscreen (Goodix GT911 — common on round displays)
+# ═══════════════════════════════════════════════════════════════
+CONFIG_INPUT_TOUCHSCREEN=y
+CONFIG_TOUCHSCREEN_GOODIX=y
+
+# ═══════════════════════════════════════════════════════════════
 # UART/Serial
 # ═══════════════════════════════════════════════════════════════
 CONFIG_SERIAL_8250=y
@@ -61,7 +74,7 @@ CONFIG_SERIAL_8250_DW=y
 CONFIG_SERIAL_8250_CONSOLE=y
 
 # ═══════════════════════════════════════════════════════════════
-# WiFi (BCM43430/AP6212 on Radxa Zero 3W via SDIO)
+# WiFi (BCM43430/AP6212 — built-in, NOT module)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_WLAN=y
 CONFIG_CFG80211=y
@@ -71,18 +84,13 @@ CONFIG_BRCMFMAC=y
 CONFIG_BRCMFMAC_SDIO=y
 
 # ═══════════════════════════════════════════════════════════════
-# GPU (Panfrost for Mali G52)
-# ═══════════════════════════════════════════════════════════════
-CONFIG_DRM_PANFROST=y
-
-# ═══════════════════════════════════════════════════════════════
-# PWM (backlight control for panel)
+# PWM (backlight control)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_PWM=y
 CONFIG_PWM_ROCKCHIP=y
 
 # ═══════════════════════════════════════════════════════════════
-# RTC + Power
+# RTC + Power Management
 # ═══════════════════════════════════════════════════════════════
 CONFIG_RTC_CLASS=y
 CONFIG_RTC_DRV_RK808=y
@@ -98,6 +106,6 @@ CONFIG_GPIOLIB=y
 CONFIG_GPIO_ROCKCHIP=y
 
 # ═══════════════════════════════════════════════════════════════
-# Device Tree Overlays support
+# Device Tree Overlays
 # ═══════════════════════════════════════════════════════════════
 CONFIG_OF_OVERLAY=y

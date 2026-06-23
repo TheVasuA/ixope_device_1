@@ -1,5 +1,6 @@
 # IXOPE Medical Device — Buildroot defconfig for Radxa Zero 3W (RK3566)
-# Minimal image: boots to the app in ~5 seconds on eMMC.
+# Official Radxa BSP kernel 5.10 (linux-5.10-gen-rkr8-buildroot)
+# Target: boot to app in ~5 seconds on eMMC, ~7s on SD card.
 
 # ═══════════════════════════════════════════════════════════════════════
 # ARCHITECTURE
@@ -26,7 +27,7 @@ BR2_INIT_BUSYBOX=y
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_IXOPE_PATH)/rootfs-overlay"
 
 # ═══════════════════════════════════════════════════════════════════════
-# KERNEL — Radxa BSP 5.10 with full DSI panel support
+# KERNEL — Official Radxa BSP 5.10 (linux-5.10-gen-rkr8-buildroot)
 # ═══════════════════════════════════════════════════════════════════════
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_GIT=y
@@ -36,32 +37,30 @@ BR2_LINUX_KERNEL_USE_DEFCONFIG=y
 BR2_LINUX_KERNEL_DEFCONFIG="rockchip_linux"
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/linux.fragment"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
-BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3566-radxa-zero-3w-ap6212"
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3566-radxa-zero-3w"
+BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/rk3566-radxa-zero-3w-ixope.dts"
 BR2_LINUX_KERNEL_INSTALL_TARGET=y
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# BOOTLOADER (U-Boot)
+# BOOTLOADER (U-Boot — Radxa compatible for RK3566)
 # ═══════════════════════════════════════════════════════════════════════
 BR2_TARGET_UBOOT=y
 BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG=y
 BR2_TARGET_UBOOT_CUSTOM_VERSION=y
 BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE="2024.01"
-BR2_TARGET_UBOOT_BOARD_DEFCONFIG="evb-rk3568"
+BR2_TARGET_UBOOT_BOARD_DEFCONFIG="radxa-zero-3-rk3566"
 BR2_TARGET_UBOOT_FORMAT_CUSTOM=y
 BR2_TARGET_UBOOT_FORMAT_CUSTOM_NAME="u-boot-rockchip.bin"
 BR2_TARGET_UBOOT_NEEDS_DTC=y
 BR2_TARGET_UBOOT_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/uboot.fragment"
 
 # ═══════════════════════════════════════════════════════════════════════
-# FILESYSTEM (ext4 for dev, squashfs for production — faster mount)
+# FILESYSTEM
 # ═══════════════════════════════════════════════════════════════════════
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
-# Production: uncomment squashfs for read-only, ~1s faster mount
-# BR2_TARGET_ROOTFS_SQUASHFS=y
-# BR2_TARGET_ROOTFS_SQUASHFS_LZ4=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # POST-BUILD / POST-IMAGE SCRIPTS
@@ -70,7 +69,7 @@ BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/post-build.
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/create-sdcard-image.sh"
 
 # ═══════════════════════════════════════════════════════════════════════
-# PYTHON 3 + PACKAGES (matches requirements.txt)
+# PYTHON 3 + PACKAGES
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_PYTHON3=y
 BR2_PACKAGE_PYTHON_PILLOW=y
@@ -91,7 +90,7 @@ BR2_PACKAGE_OPENCV4_WITH_FFMPEG=y
 BR2_PACKAGE_OPENCV4_WITH_V4L=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# DISPLAY (minimal X11 — just enough for Tkinter)
+# DISPLAY (minimal X11 for Tkinter)
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_XORG7=y
 BR2_PACKAGE_XSERVER_XORG_SERVER=y
@@ -134,16 +133,14 @@ BR2_PACKAGE_DBUS=y
 BR2_PACKAGE_I2C_TOOLS=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# UTILITIES (minimal — remove htop/dropbear for production to save boot time)
+# UTILITIES
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UNCLUTTER=y
-# BR2_PACKAGE_HTOP=y         # disable for production (saves ~0.2s)
-# BR2_PACKAGE_DROPBEAR=y     # disable for production (saves ~0.5s)
 BR2_PACKAGE_HTOP=y
 BR2_PACKAGE_DROPBEAR=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# YOUR APP
+# IXOPE APP
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_IXOPE_APP=y
