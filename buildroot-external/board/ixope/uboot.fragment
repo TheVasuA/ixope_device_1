@@ -1,21 +1,33 @@
-# IXOPE U-Boot Config Fragment — Fast Boot
-# No delay, no USB scan, immediate kernel load
+# IXOPE U-Boot Config Fragment — Fast Boot for Radxa Zero 3W
+# Target: boot to kernel in under 3 seconds from U-Boot
 
-# Zero boot delay — don't wait for user input
+# Zero boot delay
 CONFIG_BOOTDELAY=0
 CONFIG_AUTOBOOT=y
 
-# Disable USB scanning at boot (saves ~2-3 seconds)
-# CONFIG_USB_HOST is not set for boot scanning
+# Disable USB boot scanning (saves 3-5 seconds)
 CONFIG_CMD_USB=n
 CONFIG_USB_STORAGE=n
 CONFIG_USB_KEYBOARD=n
+CONFIG_USB_HOST=n
 
-# Don't scan for boot devices we don't use
-# CONFIG_CMD_PXE is not set
-# CONFIG_CMD_DHCP is not set
-# CONFIG_DISTRO_DEFAULTS is not set
+# Disable network boot (saves 2-3 seconds)
+CONFIG_CMD_PXE=n
+CONFIG_CMD_DHCP=n
+CONFIG_CMD_NET=n
+CONFIG_CMD_NFS=n
+CONFIG_CMD_TFTPBOOT=n
 
-# Skip unnecessary device probing
-CONFIG_SYS_BOOT_GET_CMDLINE=n
-CONFIG_SYS_BOOT_GET_KBD=n
+# Only boot from MMC extlinux — no other sources
+CONFIG_BOOT_RETRY=n
+
+# Disable EFI which adds scan time
+CONFIG_EFI_LOADER=n
+
+# Skip SCSI
+CONFIG_SCSI=n
+CONFIG_CMD_SCSI=n
+
+# Quiet boot
+CONFIG_LOGLEVEL=4
+CONFIG_SYS_CONSOLE_INFO_QUIET=y
