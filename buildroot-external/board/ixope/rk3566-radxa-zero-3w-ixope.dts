@@ -8,7 +8,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/soc/rockchip,vop2.h>
 
-// Include the official Radxa Zero 3W device tree (AP6212 WiFi variant)
+// Include the official Radxa Zero 3W device tree (AP6212 variant — SDIO bus config is the same for AIC8800)
 #include "rk3566-radxa-zero-3w-ap6212.dts"
 
 / {

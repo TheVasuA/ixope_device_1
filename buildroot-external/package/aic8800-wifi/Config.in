@@ -1,0 +1,9 @@
+config BR2_PACKAGE_AIC8800_WIFI
+	bool "aic8800-wifi"
+	depends on BR2_LINUX_KERNEL
+	help
+	  AIC8800 SDIO WiFi driver for Radxa Zero 3W (and similar boards).
+	  Builds the aic8800_bsp, aic8800_fdrv, and aic8800_btlpm kernel
+	  modules, and installs firmware blobs.
+
+	  https://github.com/radxa-pkg/aic8800

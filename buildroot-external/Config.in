@@ -1,1 +1,2 @@
 source "$BR2_EXTERNAL_IXOPE_PATH/package/ixope-app/Config.in"
+source "$BR2_EXTERNAL_IXOPE_PATH/package/aic8800-wifi/Config.in"

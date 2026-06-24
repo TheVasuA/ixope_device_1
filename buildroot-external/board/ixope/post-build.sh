@@ -107,13 +107,33 @@ if command -v mkimage >/dev/null 2>&1; then
     echo "[OK] Generated boot.scr (fallback)"
 fi
 
-# ─── WiFi firmware NVRAM symlink for Radxa Zero 3W (AP6212) ───────────
-mkdir -p "$TARGET_DIR/lib/firmware/brcm"
-if [ -f "$TARGET_DIR/lib/firmware/brcm/brcmfmac43430-sdio.AP6212.txt" ]; then
-    ln -sf brcmfmac43430-sdio.AP6212.txt \
-        "$TARGET_DIR/lib/firmware/brcm/brcmfmac43430-sdio.radxa,zero-3w.txt"
-    echo "[OK] WiFi: linked AP6212 NVRAM for Radxa Zero 3W"
-fi
+# ─── WiFi: AIC8800 module auto-loading ────────────────────────────────
+# The aic8800-wifi package installs .ko files and firmware.
+# Ensure modules load at boot (BusyBox init doesn't use systemd modules-load).
+mkdir -p "$TARGET_DIR/etc/init.d"
+cat > "$TARGET_DIR/etc/init.d/S10modules" << 'EOF'
+#!/bin/sh
+case "$1" in
+  start)
+    # Load AIC8800 WiFi modules
+    if [ -d /lib/modules ]; then
+        KVER=$(ls /lib/modules/ | head -1)
+        if [ -n "$KVER" ]; then
+            depmod -a "$KVER" 2>/dev/null
+            modprobe aic8800_bsp 2>/dev/null
+            modprobe aic8800_fdrv 2>/dev/null
+        fi
+    fi
+    # Wait for wlan interface to appear
+    for i in 1 2 3 4 5; do
+        [ -d /sys/class/net/wlan0 ] && break
+        sleep 1
+    done
+    ;;
+esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S10modules"
+echo "[OK] WiFi: Created S10modules init script for AIC8800"
 
 # ─── Create data directory mount point ─────────────────────────────────
 mkdir -p "$TARGET_DIR/var/ixope-data"

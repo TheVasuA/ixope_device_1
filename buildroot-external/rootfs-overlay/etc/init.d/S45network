@@ -1,0 +1,40 @@
+#!/bin/sh
+# IXOPE — Start dbus + NetworkManager for WiFi (AIC8800)
+case "$1" in
+  start)
+    # Wait for wlan0 (AIC8800 modules loaded by S10modules)
+    for i in 1 2 3 4 5 6 7 8; do
+        [ -d /sys/class/net/wlan0 ] && break
+        sleep 1
+    done
+
+    # dbus is required by NetworkManager
+    mkdir -p /var/run/dbus
+    if [ -x /usr/bin/dbus-daemon ]; then
+        dbus-daemon --system --fork 2>/dev/null
+    fi
+
+    # Start NetworkManager
+    if [ -x /usr/sbin/NetworkManager ]; then
+        NetworkManager --daemon 2>/dev/null
+        sleep 1
+    elif [ -x /usr/sbin/wpa_supplicant ]; then
+        # Fallback: wpa_supplicant directly
+        if [ -d /sys/class/net/wlan0 ]; then
+            ip link set wlan0 up 2>/dev/null
+            wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant.conf \
+                -D nl80211 2>/dev/null
+        fi
+    fi
+    ;;
+  stop)
+    killall NetworkManager 2>/dev/null
+    killall wpa_supplicant 2>/dev/null
+    killall dbus-daemon 2>/dev/null
+    ;;
+  restart)
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+esac
