@@ -41,6 +41,7 @@ BR2_LINUX_KERNEL_INTREE_DTS_NAME="rockchip/rk3566-radxa-zero-3w"
 BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/rk3566-radxa-zero-3w-ixope.dts"
 BR2_LINUX_KERNEL_INSTALL_TARGET=y
 BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+BR2_LINUX_KERNEL_CUSTOM_MAKEOPTS="KCFLAGS=-Wno-error=address"
 
 # ═══════════════════════════════════════════════════════════════════════
 # BOOTLOADER — Use pre-built U-Boot from Radxa (includes TPL+BL31)
