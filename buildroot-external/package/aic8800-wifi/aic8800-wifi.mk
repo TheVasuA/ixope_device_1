@@ -14,14 +14,18 @@ AIC8800_WIFI_MODULE_SUBDIRS = src/SDIO/driver_fw/driver/aic8800
 
 # Tell kbuild to build these as modules
 # Override platform flags — we cross-compile, not native Ubuntu build
+# CONFIG_USE_FW_REQUEST=y makes the driver use request_firmware() to load
+# firmware from /lib/firmware/ instead of an empty built-in array.
+# Skip btlpm (no Bluetooth needed on this device).
 AIC8800_WIFI_MODULE_MAKE_OPTS = \
-	CONFIG_AIC8800_BTLPM_SUPPORT=m \
+	CONFIG_AIC8800_BTLPM_SUPPORT=n \
 	CONFIG_AIC8800_WLAN_SUPPORT=m \
 	CONFIG_AIC_WLAN_SUPPORT=m \
 	CONFIG_PLATFORM_UBUNTU=n \
 	CONFIG_PLATFORM_ROCKCHIP=n \
 	CONFIG_PLATFORM_ALLWINNER=n \
 	CONFIG_PLATFORM_AMLOGIC=n \
+	CONFIG_USE_FW_REQUEST=y \
 	KDIR=$(LINUX_DIR)
 
 $(eval $(kernel-module))
