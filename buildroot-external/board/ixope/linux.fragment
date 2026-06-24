@@ -75,7 +75,7 @@ CONFIG_SERIAL_8250_CONSOLE=y
 
 # ═══════════════════════════════════════════════════════════════
 # WiFi (BCM43430/AP6212 — built-in, NOT module)
-# Use Rockchip's out-of-tree bcmdhd driver (in-tree for BSP kernel)
+# Use mainline brcmfmac (NOT Rockchip's buggy bcmdhd)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_WLAN=y
 CONFIG_CFG80211=y
@@ -83,10 +83,8 @@ CONFIG_MAC80211=y
 CONFIG_BRCMUTIL=y
 CONFIG_BRCMFMAC=y
 CONFIG_BRCMFMAC_SDIO=y
-CONFIG_WL_ROCKCHIP=y
-
-# Disable -Werror for entire kernel (Rockchip BSP has GCC 12+ warnings)
-CONFIG_WERROR=n
+# CONFIG_WL_ROCKCHIP is not set
+# CONFIG_BCMDHD is not set
 
 # ═══════════════════════════════════════════════════════════════
 # PWM (backlight control)
