@@ -2,7 +2,7 @@
 # IXOPE Medical Device — Application startup script
 case "$1" in
   start)
-    # Create data directories (preserves existing content)
+    # Create data directories
     mkdir -p /var/ixope-data/logs
     mkdir -p /var/ixope-data/captured_images/opth
     mkdir -p /var/ixope-data/captured_images/oto
@@ -13,18 +13,10 @@ case "$1" in
     mkdir -p /var/ixope-data/recorded_videos/derm
     mkdir -p /var/ixope-data/recorded_videos/micro
 
-    # Environment
     export DISPLAY=:0
     export IXOPE_BASE_PATH=/var/ixope-data
     export HOME=/root
 
-    # Wait for X to be ready (max 5s)
-    for i in 1 2 3 4 5; do
-        xdpyinfo >/dev/null 2>&1 && break
-        sleep 1
-    done
-
-    # Launch the application
     cd /opt/ixope
     python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
     echo $! > /var/run/ixope.pid

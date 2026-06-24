@@ -2,11 +2,15 @@
 # Start Xorg with evdev touchscreen support
 case "$1" in
   start)
+    killall Xorg 2>/dev/null
     rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+    sleep 1
     Xorg :0 -nolisten tcp -noreset vt1 &
+    sleep 3
     ;;
   stop)
     killall Xorg 2>/dev/null
+    rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
     ;;
   restart)
     $0 stop
