@@ -29,26 +29,21 @@ $(eval $(generic-package))
 
 # Install firmware files to target
 define AIC8800_WIFI_INSTALL_TARGET_CMDS
-	# Install all firmware variants the driver may request
-	mkdir -p $(TARGET_DIR)/lib/firmware/aic8800
-	mkdir -p $(TARGET_DIR)/lib/firmware/aic8800D80
-	mkdir -p $(TARGET_DIR)/lib/firmware/aic8800DC
+	# The chip identifies as AIC8800D80 (chip rev 7).
+	# Driver looks for firmware in /lib/firmware/aic8800D80/
+	# Install ALL firmware variants to cover all chip revisions.
+	for dir in aic8800 aic8800D80 aic8800D80N aic8800D80X2 aic8800DC; do \
+		if [ -d $(@D)/src/SDIO/driver_fw/fw/$$dir ]; then \
+			mkdir -p $(TARGET_DIR)/lib/firmware/$$dir ; \
+			cp -a $(@D)/src/SDIO/driver_fw/fw/$$dir/* \
+				$(TARGET_DIR)/lib/firmware/$$dir/ ; \
+		fi ; \
+	done
 
-	# aic8800 base firmware
-	if [ -d $(@D)/src/SDIO/driver_fw/fw/aic8800 ]; then \
-		cp -a $(@D)/src/SDIO/driver_fw/fw/aic8800/* \
-			$(TARGET_DIR)/lib/firmware/aic8800/ ; \
-	fi
-
-	# aic8800D80 firmware (common on Radxa Zero 3W rev2+)
-	if [ -d $(@D)/src/SDIO/driver_fw/fw/aic8800D80 ]; then \
-		cp -a $(@D)/src/SDIO/driver_fw/fw/aic8800D80/* \
-			$(TARGET_DIR)/lib/firmware/aic8800D80/ ; \
-	fi
-
-	# aic8800DC firmware
-	if [ -d $(@D)/src/SDIO/driver_fw/fw/aic8800DC ]; then \
-		cp -a $(@D)/src/SDIO/driver_fw/fw/aic8800DC/* \
-			$(TARGET_DIR)/lib/firmware/aic8800DC/ ; \
+	# Also install the AIC common firmware from the aic/ directory if present
+	if [ -d $(@D)/src/SDIO/driver_fw/aic ]; then \
+		mkdir -p $(TARGET_DIR)/lib/firmware/aic8800D80 ; \
+		cp -a $(@D)/src/SDIO/driver_fw/aic/* \
+			$(TARGET_DIR)/lib/firmware/aic8800D80/ 2>/dev/null || true ; \
 	fi
 endef

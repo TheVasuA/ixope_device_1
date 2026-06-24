@@ -121,11 +121,12 @@ case "$1" in
         if [ -n "$KVER" ]; then
             depmod -a "$KVER" 2>/dev/null
             modprobe aic8800_bsp 2>/dev/null
+            sleep 2
             modprobe aic8800_fdrv 2>/dev/null
         fi
     fi
     # Wait for wlan interface to appear
-    for i in 1 2 3 4 5; do
+    for i in 1 2 3 4 5 6 7 8 9 10; do
         [ -d /sys/class/net/wlan0 ] && break
         sleep 1
     done
