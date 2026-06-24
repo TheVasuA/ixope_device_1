@@ -8,8 +8,8 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/soc/rockchip,vop2.h>
 
-// Include the official Radxa Zero 3W device tree
-#include "rk3566-radxa-zero-3w.dts"
+// Include the official Radxa Zero 3W device tree (AP6212 WiFi variant)
+#include "rk3566-radxa-zero-3w-ap6212.dts"
 
 / {
 	model = "IXOPE Medical Device (Radxa Zero 3W)";
