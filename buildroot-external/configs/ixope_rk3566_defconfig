@@ -128,6 +128,8 @@ BR2_PACKAGE_IW=y
 BR2_PACKAGE_WIRELESS_TOOLS=y
 BR2_PACKAGE_DBUS=y
 BR2_PACKAGE_LIBNL=y
+BR2_PACKAGE_READLINE=y
+BR2_PACKAGE_LIBGLIB2=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # HARDWARE (I2C, serial, GPIO)
