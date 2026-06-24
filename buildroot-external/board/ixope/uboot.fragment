@@ -34,3 +34,6 @@ CONFIG_CMD_NVME=n
 # Quiet boot output
 CONFIG_LOGLEVEL=4
 CONFIG_SYS_CONSOLE_INFO_QUIET=y
+
+# Disable binman TPL requirement (use rkdeveloptool for flashing instead)
+CONFIG_ROCKCHIP_EXTERNAL_TPL=n
