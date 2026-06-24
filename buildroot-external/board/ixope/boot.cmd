@@ -6,7 +6,7 @@
 
 # Load kernel + DTB from SD card (mmc 1, partition 1)
 load mmc 1:1 0x02080000 /boot/Image
-load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ixope.dtb
+load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb
 
 # Boot args — quiet, fast, no cursor, DSI panel primary
 setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 console=ttyS2,1500000
