@@ -107,7 +107,12 @@ if command -v mkimage >/dev/null 2>&1; then
     echo "[OK] Generated boot.scr (fallback)"
 fi
 
-# ─── WiFi: AIC8800 module auto-loading ────────────────────────────────
+# ─── WiFi: AIC8800 firmware path symlink ──────────────────────────────
+# The AIC8800 driver hardcodes firmware path to /vendor/etc/firmware/
+# (Android convention). Symlink it to the actual firmware location.
+mkdir -p "$TARGET_DIR/vendor/etc"
+ln -sf /lib/firmware/aic8800D80 "$TARGET_DIR/vendor/etc/firmware"
+echo "[OK] WiFi: Symlinked /vendor/etc/firmware -> /lib/firmware/aic8800D80"
 # The aic8800-wifi package installs .ko files and firmware.
 # Ensure modules load at boot (BusyBox init doesn't use systemd modules-load).
 mkdir -p "$TARGET_DIR/etc/init.d"
