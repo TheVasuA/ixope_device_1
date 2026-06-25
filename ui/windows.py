@@ -1227,8 +1227,9 @@ class WifiWindow(BaseWindow):
         save_country(code)
 
     def _is_wifi_connected(self):
-        """Check if WiFi is currently connected (quick nmcli check)."""
+        """Check if WiFi is currently connected."""
         try:
+            # Try nmcli first
             r = subprocess.run(
                 ['nmcli', '-t', '-f', 'ACTIVE,SSID', 'dev', 'wifi'],
                 capture_output=True, text=True, timeout=3)
@@ -1238,6 +1239,19 @@ class WifiWindow(BaseWindow):
                     if ssid:
                         self._ssid = ssid
                         return True
+        except Exception:
+            pass
+        # Fallback: check iw link
+        try:
+            r = subprocess.run(
+                ['iw', 'dev', 'wlan0', 'link'],
+                capture_output=True, text=True, timeout=3)
+            if 'Connected to' in r.stdout:
+                for line in r.stdout.split('\n'):
+                    if 'SSID:' in line:
+                        self._ssid = line.split('SSID:')[1].strip()
+                        return True
+                return True
         except Exception:
             pass
         return False
@@ -1631,6 +1645,7 @@ class WifiWindow(BaseWindow):
         def go():
             ok = False
             try:
+                # Try nmcli first
                 r = subprocess.run(
                     ['nmcli', 'dev', 'wifi', 'connect', self._ssid,
                      'password', self._pw],
@@ -1639,6 +1654,32 @@ class WifiWindow(BaseWindow):
                 ok = r.returncode == 0
             except Exception:
                 ok = False
+
+            # Fallback: use wpa_supplicant directly
+            if not ok:
+                try:
+                    # Kill any existing wpa_supplicant
+                    subprocess.run(['killall', 'wpa_supplicant'],
+                                   capture_output=True, timeout=3)
+                    import tempfile, os
+                    conf = f'network={{\n  ssid="{self._ssid}"\n  psk="{self._pw}"\n}}\n'
+                    conf_path = '/tmp/wpa_connect.conf'
+                    with open(conf_path, 'w') as f:
+                        f.write(conf)
+                    subprocess.run(['ip', 'link', 'set', 'wlan0', 'up'],
+                                   capture_output=True, timeout=3)
+                    r = subprocess.run(
+                        ['wpa_supplicant', '-B', '-i', 'wlan0', '-c', conf_path, '-D', 'nl80211'],
+                        capture_output=True, text=True, timeout=10)
+                    if r.returncode == 0:
+                        import time; time.sleep(3)
+                        # Get IP via udhcpc
+                        r2 = subprocess.run(['udhcpc', '-i', 'wlan0', '-n', '-q'],
+                                           capture_output=True, text=True, timeout=15)
+                        ok = r2.returncode == 0
+                except Exception:
+                    pass
+
             if not self.is_open():
                 return
             if ok:
@@ -1657,6 +1698,16 @@ class WifiWindow(BaseWindow):
             try:
                 subprocess.run(['nmcli', 'dev', 'disconnect', 'wlan0'],
                                capture_output=True, text=True, timeout=10)
+            except Exception:
+                pass
+            # Fallback: kill wpa_supplicant and bring interface down
+            try:
+                subprocess.run(['killall', 'wpa_supplicant'],
+                               capture_output=True, timeout=3)
+                subprocess.run(['ip', 'link', 'set', 'wlan0', 'down'],
+                               capture_output=True, timeout=3)
+                subprocess.run(['ip', 'link', 'set', 'wlan0', 'up'],
+                               capture_output=True, timeout=3)
             except Exception:
                 pass
             if self.is_open():
@@ -1690,7 +1741,7 @@ class WifiWindow(BaseWindow):
         """Get current SSID and assigned IP address (best-effort)."""
         info = {'ssid': self._ssid or '', 'ip': '—',
                 'gateway': '—', 'devices': []}
-        # Active SSID via nmcli
+        # Active SSID — try nmcli, fall back to iw
         try:
             r = subprocess.run(
                 ['nmcli', '-t', '-f', 'ACTIVE,SSID', 'dev', 'wifi'],
@@ -1701,6 +1752,16 @@ class WifiWindow(BaseWindow):
                     break
         except Exception:
             pass
+        if not info['ssid'] or info['ssid'] == '—':
+            try:
+                r = subprocess.run(['iw', 'dev', 'wlan0', 'link'],
+                                   capture_output=True, text=True, timeout=3)
+                for line in r.stdout.split('\n'):
+                    if 'SSID:' in line:
+                        info['ssid'] = line.split('SSID:')[1].strip()
+                        break
+            except Exception:
+                pass
         # IP via `hostname -I` — the only network detail shown post-connect
         try:
             r = subprocess.run(['hostname', '-I'],
