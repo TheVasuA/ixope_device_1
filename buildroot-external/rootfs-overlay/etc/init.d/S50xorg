@@ -1,12 +1,15 @@
 #!/bin/sh
-# Start Xorg with evdev touchscreen support
+# Start Xorg — no delays
 case "$1" in
   start)
-    killall Xorg 2>/dev/null
     rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
-    sleep 1
     Xorg :0 -nolisten tcp -noreset vt1 &
-    sleep 3
+    # Wait for X socket (fast poll, no fixed sleep)
+    n=0
+    while [ ! -e /tmp/.X11-unix/X0 ] && [ $n -lt 30 ]; do
+      usleep 100000
+      n=$((n + 1))
+    done
     ;;
   stop)
     killall Xorg 2>/dev/null
@@ -14,7 +17,6 @@ case "$1" in
     ;;
   restart)
     $0 stop
-    sleep 1
     $0 start
     ;;
 esac

@@ -120,21 +120,15 @@ cat > "$TARGET_DIR/etc/init.d/S10modules" << 'EOF'
 #!/bin/sh
 case "$1" in
   start)
-    # Load AIC8800 WiFi modules
+    # Load AIC8800 WiFi modules — no blocking waits
     if [ -d /lib/modules ]; then
         KVER=$(ls /lib/modules/ | head -1)
         if [ -n "$KVER" ]; then
             depmod -a "$KVER" 2>/dev/null
             modprobe aic8800_bsp 2>/dev/null
-            sleep 2
             modprobe aic8800_fdrv 2>/dev/null
         fi
     fi
-    # Wait for wlan interface to appear
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        [ -d /sys/class/net/wlan0 ] && break
-        sleep 1
-    done
     ;;
 esac
 EOF
