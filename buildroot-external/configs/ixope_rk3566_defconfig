@@ -43,15 +43,22 @@ BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
 BR2_LINUX_KERNEL_CUSTOM_MAKEOPTS="KCFLAGS=-Wno-error=address"
 
 # ═══════════════════════════════════════════════════════════════════════
-# BOOTLOADER — Use pre-built U-Boot from Radxa (includes TPL+BL31)
-# Building U-Boot for Rockchip from source requires vendor blobs
-# (DDR init + ARM Trusted Firmware) that are board-specific.
-# Download the pre-built binary with:
+# BOOTLOADER — Custom U-Boot built from source (fast boot, 0 delay)
+# Requires rkbin blobs (DDR init + BL31). Download with:
 #   bash buildroot-external/board/ixope/download-blobs.sh
 # ═══════════════════════════════════════════════════════════════════════
-# BR2_TARGET_UBOOT is DISABLED — we use a pre-built u-boot-rockchip.bin
-# The post-image script copies it into the SD card image.
-# BR2_TARGET_UBOOT is not set
+BR2_TARGET_UBOOT=y
+BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG=y
+BR2_TARGET_UBOOT_CUSTOM_VERSION=y
+BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE="2024.01"
+BR2_TARGET_UBOOT_BOARD_DEFCONFIG="radxa-zero-3-rk3566"
+BR2_TARGET_UBOOT_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/uboot.fragment"
+BR2_TARGET_UBOOT_NEEDS_DTC=y
+BR2_TARGET_UBOOT_NEEDS_PYLIBFDT=y
+BR2_TARGET_UBOOT_NEEDS_OPENSSL=y
+BR2_TARGET_UBOOT_FORMAT_CUSTOM=y
+BR2_TARGET_UBOOT_FORMAT_CUSTOM_NAME="u-boot-rockchip.bin"
+BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS="BL31=$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/bl31.elf ROCKCHIP_TPL=$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/ddr.bin"
 
 # ═══════════════════════════════════════════════════════════════════════
 # FILESYSTEM

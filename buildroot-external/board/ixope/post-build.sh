@@ -1,22 +1,59 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════
-# IXOPE post-build script — Official Radxa Zero 3W BSP kernel 5.10
-# Optimizes boot for 2-5 second total boot with logo on screen at ~0.5s.
+# IXOPE post-build — Fast boot optimizations
+# Strategy: Keep Buildroot's default rcS, but remove slow scripts
+# and ensure our overlay scripts (S50xorg, S99ixope) run fast.
 # ═══════════════════════════════════════════════════════════════════════
 
 TARGET_DIR="$1"
 BOARD_DIR="$(dirname "$0")"
 
-echo "═══ IXOPE Post-Build: Applying fast-boot optimizations ═══"
+echo "=== IXOPE Post-Build ==="
 
-# ─── Install U-Boot splash BMP ─────────────────────────────────────────
-if [ -f "$BOARD_DIR/splash.bmp" ]; then
-    mkdir -p "$TARGET_DIR/boot"
-    cp "$BOARD_DIR/splash.bmp" "$TARGET_DIR/boot/splash.bmp"
-    echo "[OK] Installed U-Boot splash logo."
-fi
+# ─── Remove slow/unnecessary default init scripts ──────────────────────
+# These add seconds of delay and aren't needed for our kiosk app
+rm -f "$TARGET_DIR/etc/init.d/S01logging" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S20urandom" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S40network" 2>/dev/null
 
-# ─── extlinux.conf — primary boot configuration ───────────────────────
+# ─── Add fast-boot scripts ─────────────────────────────────────────────
+# S00dmesg — suppress kernel console spam (instant)
+cat > "$TARGET_DIR/etc/init.d/S00dmesg" << 'EOF'
+#!/bin/sh
+case "$1" in start) dmesg -n 1 ;; esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S00dmesg"
+
+# S01cpufreq — performance governor (instant)
+cat > "$TARGET_DIR/etc/init.d/S01cpufreq" << 'EOF'
+#!/bin/sh
+case "$1" in
+  start)
+    for g in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor; do
+      [ -f "$g" ] && echo performance > "$g" 2>/dev/null
+    done
+    ;;
+esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S01cpufreq"
+
+# S10modules — load WiFi driver (no sleep, no polling)
+cat > "$TARGET_DIR/etc/init.d/S10modules" << 'EOF'
+#!/bin/sh
+case "$1" in
+  start)
+    if [ -d /lib/modules ]; then
+      KVER=$(ls /lib/modules/ | head -1)
+      [ -n "$KVER" ] && depmod -a "$KVER" 2>/dev/null
+      modprobe aic8800_bsp 2>/dev/null
+      modprobe aic8800_fdrv 2>/dev/null
+    fi
+    ;;
+esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S10modules"
+
+# ─── extlinux.conf — kernel boot config ───────────────────────────────
 mkdir -p "$TARGET_DIR/boot/extlinux"
 cat > "$TARGET_DIR/boot/extlinux/extlinux.conf" << 'EOF'
 default ixope
@@ -27,33 +64,9 @@ label ixope
     fdt /boot/rk3566-radxa-zero-3w-ap6212.dtb
     append root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 console=ttyS2,1500000
 EOF
-echo "[OK] Generated extlinux.conf"
 
-# ─── Remove unnecessary init scripts that slow boot ─────────────────────
-rm -f "$TARGET_DIR/etc/init.d/S01logging"  2>/dev/null
-rm -f "$TARGET_DIR/etc/init.d/S20urandom"  2>/dev/null
-rm -f "$TARGET_DIR/etc/init.d/S40network"  2>/dev/null
-echo "[OK] Removed slow init scripts (S01logging, S20urandom, S40network)"
-
-# ─── Create optimized rcS to run init scripts in parallel ───────────────
-cat > "$TARGET_DIR/etc/init.d/rcS" << 'EOFRC'
-#!/bin/sh
-# Fast parallel init — only essential scripts
-for i in /etc/init.d/S??*; do
-    [ ! -x "$i" ] && continue
-    case "$i" in
-        *.sh) . "$i" start ;;
-        *)    "$i" start &  ;;
-    esac
-done
-wait
-EOFRC
-chmod 755 "$TARGET_DIR/etc/init.d/rcS"
-echo "[OK] Created parallel rcS init"
-
-# ─── fstab — rootfs + tmpfs + data partition ─────────────────────────────
+# ─── fstab — fast mount options ────────────────────────────────────────
 cat > "$TARGET_DIR/etc/fstab" << 'EOF'
-# <device>      <mount>          <type>  <options>               <dump> <fsck>
 /dev/root       /                ext4    rw,noatime,nodiratime   0      1
 sysfs           /sys             sysfs   defaults                0      0
 proc            /proc            proc    defaults                0      0
@@ -61,12 +74,11 @@ tmpfs           /tmp             tmpfs   defaults,nosuid,size=64M 0     0
 tmpfs           /var/run         tmpfs   defaults,nosuid,size=8M  0     0
 /dev/mmcblk1p2  /var/ixope-data  ext4    rw,noatime,nosuid       0      2
 EOF
-echo "[OK] Generated fstab with data partition"
 
 # ─── Hostname ──────────────────────────────────────────────────────────
 echo "ixope" > "$TARGET_DIR/etc/hostname"
 
-# ─── NetworkManager — non-blocking WiFi at boot ────────────────────────
+# ─── NetworkManager non-blocking ───────────────────────────────────────
 mkdir -p "$TARGET_DIR/etc/NetworkManager/conf.d"
 cat > "$TARGET_DIR/etc/NetworkManager/conf.d/wifi.conf" << 'EOF'
 [device]
@@ -75,80 +87,22 @@ wifi.scan-rand-mac-address=no
 [main]
 no-auto-default=*
 EOF
-echo "[OK] Configured NetworkManager (non-blocking)"
 
-# ─── S00dmesg — suppress kernel console output ────────────────────────
-cat > "$TARGET_DIR/etc/init.d/S00dmesg" << 'EOF'
-#!/bin/sh
-case "$1" in
-  start) dmesg -n 1 ;;
-esac
-EOF
-chmod 755 "$TARGET_DIR/etc/init.d/S00dmesg"
-
-# ─── S01cpufreq — performance governor at boot ────────────────────────
-cat > "$TARGET_DIR/etc/init.d/S01cpufreq" << 'EOF'
-#!/bin/sh
-case "$1" in
-  start)
-    for gov in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor; do
-      [ -f "$gov" ] && echo performance > "$gov" 2>/dev/null
-    done
-    ;;
-esac
-EOF
-chmod 755 "$TARGET_DIR/etc/init.d/S01cpufreq"
-echo "[OK] Created S00dmesg + S01cpufreq init scripts"
-
-# ─── Generate U-Boot boot script (boot.scr) — fallback ────────────────
-if command -v mkimage >/dev/null 2>&1; then
-    mkimage -C none -A arm64 -T script -d "$BOARD_DIR/boot.cmd" \
-        "$TARGET_DIR/boot/boot.scr" >/dev/null 2>&1
-    echo "[OK] Generated boot.scr (fallback)"
-fi
-
-# ─── WiFi: AIC8800 firmware path setup ────────────────────────────────
-# The AIC8800 driver uses both:
-# 1. Direct file open from /vendor/etc/firmware/ (Android path)
-# 2. request_firmware() which looks in /lib/firmware/ (no subdir)
-# We need both paths to work.
+# ─── WiFi firmware symlink ─────────────────────────────────────────────
 mkdir -p "$TARGET_DIR/vendor/etc"
 ln -sf /lib/firmware/aic8800D80 "$TARGET_DIR/vendor/etc/firmware"
 
-# Also symlink D80 firmware files into /lib/firmware/ root (for request_firmware)
-if [ -d "$TARGET_DIR/lib/firmware/aic8800D80" ]; then
-    for f in "$TARGET_DIR"/lib/firmware/aic8800D80/*; do
-        [ -f "$f" ] && ln -sf "aic8800D80/$(basename $f)" "$TARGET_DIR/lib/firmware/$(basename $f)" 2>/dev/null
-    done
-    echo "[OK] WiFi: Symlinked AIC8800D80 firmware into /lib/firmware/"
+# ─── boot.scr fallback ────────────────────────────────────────────────
+if command -v mkimage >/dev/null 2>&1; then
+    mkimage -C none -A arm64 -T script -d "$BOARD_DIR/boot.cmd" \
+        "$TARGET_DIR/boot/boot.scr" >/dev/null 2>&1
 fi
-echo "[OK] WiFi: Symlinked /vendor/etc/firmware -> /lib/firmware/aic8800D80"
-# The aic8800-wifi package installs .ko files and firmware.
-# Ensure modules load at boot (BusyBox init doesn't use systemd modules-load).
-mkdir -p "$TARGET_DIR/etc/init.d"
-cat > "$TARGET_DIR/etc/init.d/S10modules" << 'EOF'
-#!/bin/sh
-case "$1" in
-  start)
-    # Load AIC8800 WiFi modules — no blocking waits
-    if [ -d /lib/modules ]; then
-        KVER=$(ls /lib/modules/ | head -1)
-        if [ -n "$KVER" ]; then
-            depmod -a "$KVER" 2>/dev/null
-            modprobe aic8800_bsp 2>/dev/null
-            modprobe aic8800_fdrv 2>/dev/null
-        fi
-    fi
-    ;;
-esac
-EOF
-chmod 755 "$TARGET_DIR/etc/init.d/S10modules"
-echo "[OK] WiFi: Created S10modules init script for AIC8800"
 
-# ─── Create data directory mount point ─────────────────────────────────
+# ─── Data directories ─────────────────────────────────────────────────
 mkdir -p "$TARGET_DIR/var/ixope-data"
+mkdir -p "$TARGET_DIR/etc/dropbear"
 
 # ─── Ensure all init scripts are executable ────────────────────────────
 chmod +x "$TARGET_DIR"/etc/init.d/S* 2>/dev/null
 
-echo "═══ IXOPE Post-Build: DONE — target boot: 2-5 seconds ═══"
+echo "=== IXOPE Post-Build DONE ==="

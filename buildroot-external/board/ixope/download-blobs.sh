@@ -1,40 +1,54 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════
-# Download pre-built U-Boot + Rockchip boot blobs for Radxa Zero 3W
-# Run this ONCE before building:
+# Download Rockchip boot blobs for RK3566 (Radxa Zero 3W)
+# These are required to build U-Boot from source:
+#   - DDR init binary (ROCKCHIP_TPL)
+#   - ARM Trusted Firmware BL31 (BL31)
+#
+# Run ONCE before building:
 #   bash ~/ixope/buildroot-external/board/ixope/download-blobs.sh
 # ═══════════════════════════════════════════════════════════════════════
 
 BOARD_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "═══ Downloading Radxa Zero 3W boot blobs ═══"
+echo "═══ Downloading RK3566 boot blobs ═══"
 
-# Download the Radxa loader (SPL + U-Boot combined binary)
-# This is the official pre-built bootloader for the Radxa Zero 3W
-if [ ! -f "$BOARD_DIR/u-boot-rockchip.bin" ]; then
-    echo "Downloading pre-built U-Boot for Radxa Zero 3W..."
-
-    # Option 1: From Radxa's official loader repo
-    wget -q -O "$BOARD_DIR/rk356x_spl_loader.bin" \
-        "https://dl.radxa.com/rock3/images/loader/rk356x_spl_loader_ddr1056_v1.12.109.bin" && \
-    cp "$BOARD_DIR/rk356x_spl_loader.bin" "$BOARD_DIR/u-boot-rockchip.bin" && \
-    echo "[OK] Downloaded U-Boot/SPL loader" || \
-    echo "[FAIL] Could not download loader"
+# Clone rkbin if not already present
+RKBIN_DIR="$BOARD_DIR/rkbin"
+if [ ! -d "$RKBIN_DIR" ]; then
+    echo "Cloning Rockchip rkbin repository (shallow)..."
+    git clone --depth 1 https://github.com/rockchip-linux/rkbin.git "$RKBIN_DIR"
 else
-    echo "[OK] u-boot-rockchip.bin already exists"
+    echo "rkbin already cloned, updating..."
+    cd "$RKBIN_DIR" && git pull && cd "$BOARD_DIR"
 fi
 
-# Verify
-if [ -f "$BOARD_DIR/u-boot-rockchip.bin" ]; then
-    echo ""
-    echo "═══ DONE ═══"
-    echo "Boot binary: $BOARD_DIR/u-boot-rockchip.bin"
-    echo "Size: $(du -h "$BOARD_DIR/u-boot-rockchip.bin" | cut -f1)"
-    echo ""
-    echo "You can now build: cd ~/buildroot && make -j4"
+# Copy DDR init binary for RK3566
+DDR_BIN=$(find "$RKBIN_DIR/bin/rk35" -name "rk3566_ddr_1056MHz_v*.bin" | sort -V | tail -1)
+if [ -n "$DDR_BIN" ]; then
+    cp "$DDR_BIN" "$BOARD_DIR/ddr.bin"
+    echo "[OK] DDR binary: $(basename $DDR_BIN)"
 else
-    echo ""
-    echo "═══ FAILED ═══"
-    echo "Could not download boot binary. Check your internet connection."
+    echo "[FAIL] Could not find RK3566 DDR binary in rkbin"
     exit 1
 fi
+
+# Copy BL31 (ARM Trusted Firmware) for RK3568 (same family as RK3566)
+BL31_ELF=$(find "$RKBIN_DIR/bin/rk35" -name "rk3568_bl31_v*.elf" | sort -V | tail -1)
+if [ -n "$BL31_ELF" ]; then
+    cp "$BL31_ELF" "$BOARD_DIR/bl31.elf"
+    echo "[OK] BL31 binary: $(basename $BL31_ELF)"
+else
+    echo "[FAIL] Could not find RK3568 BL31 ELF in rkbin"
+    exit 1
+fi
+
+# Clean up rkbin (large repo, not needed after extracting blobs)
+rm -rf "$RKBIN_DIR"
+
+echo ""
+echo "═══ DONE ═══"
+echo "DDR:  $BOARD_DIR/ddr.bin"
+echo "BL31: $BOARD_DIR/bl31.elf"
+echo ""
+echo "Now run: cd ~/buildroot && make -j4"

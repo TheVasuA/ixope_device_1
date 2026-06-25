@@ -111,6 +111,12 @@ captured_images/
 dev_data/
 *.sqlite3
 
+# Buildroot blobs (download with download-blobs.sh)
+buildroot-external/board/ixope/ddr.bin
+buildroot-external/board/ixope/bl31.elf
+buildroot-external/board/ixope/rkbin/
+buildroot-external/board/ixope/u-boot-rockchip.bin
+
 # ignore sensitive or machine-specific configs
 settings_local.py
 

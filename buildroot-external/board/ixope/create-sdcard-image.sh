@@ -33,14 +33,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOTFS="$BUILDROOT_OUTPUT/rootfs.ext4"
 OUTPUT_IMG="$BUILDROOT_OUTPUT/ixope-sdcard.img"
 
-# Find U-Boot: first check board dir, then buildroot output
-if [ -f "$SCRIPT_DIR/u-boot-rockchip.bin" ]; then
-    UBOOT="$SCRIPT_DIR/u-boot-rockchip.bin"
-elif [ -f "$BUILDROOT_OUTPUT/u-boot-rockchip.bin" ]; then
+# Find U-Boot: first check buildroot output, then board dir (pre-built fallback)
+if [ -f "$BUILDROOT_OUTPUT/u-boot-rockchip.bin" ]; then
     UBOOT="$BUILDROOT_OUTPUT/u-boot-rockchip.bin"
+elif [ -f "$SCRIPT_DIR/u-boot-rockchip.bin" ]; then
+    UBOOT="$SCRIPT_DIR/u-boot-rockchip.bin"
 else
     echo "ERROR: Missing u-boot-rockchip.bin"
-    echo "Run: bash $SCRIPT_DIR/download-blobs.sh"
+    echo "Build U-Boot: make -j4 (enabled in defconfig)"
+    echo "Or download pre-built: bash $SCRIPT_DIR/download-blobs.sh"
     exit 1
 fi
 
