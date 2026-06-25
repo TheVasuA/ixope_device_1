@@ -54,32 +54,22 @@ class CameraManager:
                 cap.release()
                 continue
 
-            # Try MJPG first (faster decode), fall back to default (YUYV)
-            codecs_to_try = ['MJPG', None]
-            success = False
+            # Use YUYV — confirmed working with SF5A162 endoscope camera
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
+            cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.CAMERA_BUFFER_SIZE)
 
-            for codec in codecs_to_try:
-                if codec:
-                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
-                cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.CAMERA_BUFFER_SIZE)
+            # Brief warmup
+            time.sleep(0.3)
 
-                # Brief warmup
-                time.sleep(0.3)
-
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    self._cap = cap
-                    self._camera_index = idx
-                    self._current_frame = frame
-                    codec_name = codec or "default"
-                    print(f"✓ Camera {idx} ready ({codec_name}): {frame.shape}")
-                    success = True
-                    break
-
-            if success:
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                self._cap = cap
+                self._camera_index = idx
+                self._current_frame = frame
+                print(f"✓ Camera {idx} ready (YUYV): {frame.shape}")
                 break
             else:
                 cap.release()
