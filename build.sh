@@ -125,6 +125,11 @@ fi
 make ixope_rk3566_defconfig
 log "Configuration loaded."
 
+# ─── Step 6b: Clear cached ixope-app build (force fresh git pull) ─────
+log "Step 6b: Clearing cached ixope-app build..."
+rm -rf output/build/ixope-app-*
+log "Cache cleared — will pull latest from git."
+
 # ─── Step 7: Build ────────────────────────────────────────────────────
 log "Step 7: Building image (this takes 45-90 min first time)..."
 log "Using $(nproc) CPU cores (limited to 4 for stability)..."
