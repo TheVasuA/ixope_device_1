@@ -1,24 +1,29 @@
-# IXOPE U-Boot Config Fragment — Maximum Fast Boot for RK3566
-# Target: kernel loaded in < 2s from U-Boot start
-# SILENT: No console output at all
+# IXOPE U-Boot Config Fragment — Silent Fast Boot for RK3566
+# Target: boot kernel in < 1.5s from U-Boot start, ZERO console output
 
-# Zero boot delay — no countdown, no interactive prompt
+# Zero boot delay — instant boot, no interactive prompt
 CONFIG_BOOTDELAY=0
 CONFIG_AUTOBOOT=y
-CONFIG_AUTOBOOT_KEYED=y
-CONFIG_AUTOBOOT_PROMPT=""
 
-# SILENT CONSOLE — suppress ALL U-Boot output
-CONFIG_SILENT_CONSOLE=y
-CONFIG_SILENT_U_BOOT_ONLY=y
-CONFIG_SYS_DEVICE_NULLDEV=y
-CONFIG_SILENT_CONSOLE_UPDATE_ON_SET=y
-
-# Boot directly from MMC via extlinux — no scanning
+# Boot directly from MMC via extlinux
 CONFIG_USE_BOOTCOMMAND=y
 CONFIG_BOOTCOMMAND="sysboot mmc 1:1 any 0x02000000 /boot/extlinux/extlinux.conf"
 
-# Disable ALL unnecessary subsystem probing
+# SILENT CONSOLE — no serial output from U-Boot
+CONFIG_SILENT_CONSOLE=y
+CONFIG_SYS_DEVICE_NULLDEV=y
+CONFIG_SILENT_CONSOLE_UPDATE_ON_SET=y
+
+# Suppress board info display
+CONFIG_SYS_CONSOLE_INFO_QUIET=y
+CONFIG_DISPLAY_BOARDINFO=n
+CONFIG_DISPLAY_BOARDINFO_LATE=n
+CONFIG_LOGLEVEL=0
+
+# Set silent=1 in default environment
+CONFIG_EXTRA_ENV_SETTINGS="silent=1\0"
+
+# Disable ALL unnecessary subsystem probing (saves 1-2s)
 CONFIG_CMD_USB=n
 CONFIG_USB_STORAGE=n
 CONFIG_USB_KEYBOARD=n
@@ -33,23 +38,11 @@ CONFIG_CMD_SCSI=n
 CONFIG_NVME=n
 CONFIG_CMD_NVME=n
 
-# Quiet — suppress all non-critical output
-CONFIG_LOGLEVEL=0
-CONFIG_SYS_CONSOLE_INFO_QUIET=y
-CONFIG_DISPLAY_BOARDINFO=n
-CONFIG_DISPLAY_BOARDINFO_LATE=n
-
-# Skip FIT hash verification (saves ~300ms)
-# CONFIG_FIT_SIGNATURE is not set
-
-# Disable video in U-Boot (kernel handles display)
+# Disable video subsystem in U-Boot (kernel handles DSI panel)
 CONFIG_VIDEO=n
 CONFIG_DM_VIDEO=n
 CONFIG_DISPLAY=n
 CONFIG_VIDEO_ROCKCHIP=n
 
-# Rockchip
+# Use external TPL (Rockchip DDR binary)
 CONFIG_ROCKCHIP_EXTERNAL_TPL=y
-
-# Extra env to force silent mode
-CONFIG_EXTRA_ENV_SETTINGS="silent=1\0"
