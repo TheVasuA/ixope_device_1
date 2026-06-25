@@ -1753,15 +1753,26 @@ class WifiWindow(BaseWindow):
                         break
             except Exception:
                 pass
-        # IP via `hostname -I` — the only network detail shown post-connect
+        # IP via `ip addr show wlan0` — more reliable than hostname -I
         try:
-            r = subprocess.run(['hostname', '-I'],
+            r = subprocess.run(['ip', '-4', 'addr', 'show', 'wlan0'],
                                capture_output=True, text=True, timeout=3)
-            ips = r.stdout.strip().split()
-            if ips:
-                info['ip'] = ips[0]
+            for line in r.stdout.split('\n'):
+                line = line.strip()
+                if line.startswith('inet '):
+                    info['ip'] = line.split()[1].split('/')[0]
+                    break
         except Exception:
             pass
+        if info['ip'] == '—':
+            try:
+                r = subprocess.run(['hostname', '-I'],
+                                   capture_output=True, text=True, timeout=3)
+                ips = r.stdout.strip().split()
+                if ips:
+                    info['ip'] = ips[0]
+            except Exception:
+                pass
         return info
 
     def _draw_devices(self):
