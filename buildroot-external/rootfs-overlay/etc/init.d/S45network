@@ -5,7 +5,7 @@ case "$1" in
   start)
     mkdir -p /var/run/dbus
     [ -x /usr/bin/dbus-daemon ] && dbus-daemon --system --fork 2>/dev/null
-    [ -x /usr/sbin/NetworkManager ] && NetworkManager --daemon 2>/dev/null
+    [ -x /usr/sbin/NetworkManager ] && NetworkManager 2>/dev/null
     ;;
   stop)
     killall NetworkManager 2>/dev/null
