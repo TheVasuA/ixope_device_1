@@ -4,7 +4,7 @@ Camera Manager - Ultra-low-latency USB camera capture with shared frame buffer.
 Key optimizations:
 - Single frame buffer with lock (no queue overhead for latest-frame access)
 - Pre-allocated numpy buffer to avoid per-frame allocation
-- MJPG codec for hardware-accelerated decode
+- Codec auto-detection: tries MJPG first, falls back to YUYV/default
 - Buffer size = 1 to always get freshest frame
 - Shared frame reference for UI, recording, and streaming
 """
@@ -54,22 +54,32 @@ class CameraManager:
                 cap.release()
                 continue
 
-            # Force MJPG for hardware decode (much faster than YUYV)
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
-            cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.CAMERA_BUFFER_SIZE)
+            # Try MJPG first (faster decode), fall back to default (YUYV)
+            codecs_to_try = ['MJPG', None]
+            success = False
 
-            # Brief warmup
-            time.sleep(0.3)
+            for codec in codecs_to_try:
+                if codec:
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
+                cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, settings.CAMERA_BUFFER_SIZE)
 
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                self._cap = cap
-                self._camera_index = idx
-                self._current_frame = frame
-                print(f"✓ Camera {idx} ready: {frame.shape}")
+                # Brief warmup
+                time.sleep(0.3)
+
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    self._cap = cap
+                    self._camera_index = idx
+                    self._current_frame = frame
+                    codec_name = codec or "default"
+                    print(f"✓ Camera {idx} ready ({codec_name}): {frame.shape}")
+                    success = True
+                    break
+
+            if success:
                 break
             else:
                 cap.release()
