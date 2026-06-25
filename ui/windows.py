@@ -1385,6 +1385,7 @@ class WifiWindow(BaseWindow):
 
     def _do_scan(self):
         try:
+            # First try nmcli (works when NetworkManager manages wlan0)
             r = subprocess.run(['nmcli','-t','-f','SSID,SIGNAL','dev','wifi','list'],
                                capture_output=True, text=True, timeout=15)
             nets, seen = [], set()
@@ -1393,6 +1394,26 @@ class WifiWindow(BaseWindow):
                 if len(parts)>=2 and parts[0] and parts[0] not in seen:
                     seen.add(parts[0])
                     nets.append({'ssid':parts[0],'signal':int(parts[1]) if parts[1].isdigit() else 50})
+            # If nmcli returned no results, fall back to iw
+            if not nets:
+                subprocess.run(['ip', 'link', 'set', 'wlan0', 'up'],
+                               capture_output=True, timeout=3)
+                r = subprocess.run(['iw', 'dev', 'wlan0', 'scan'],
+                                   capture_output=True, text=True, timeout=20)
+                ssid, signal = '', -100
+                for line in r.stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('signal:'):
+                        try: signal = int(float(line.split(':')[1].strip().split()[0]))
+                        except: signal = -80
+                    elif line.startswith('SSID:'):
+                        ssid = line.split(':', 1)[1].strip()
+                        if ssid and not ssid.startswith('\\x00') and ssid not in seen:
+                            seen.add(ssid)
+                            # Convert dBm to percentage (roughly: -30=100%, -90=0%)
+                            pct = max(0, min(100, 2 * (signal + 100)))
+                            nets.append({'ssid': ssid, 'signal': pct})
+                        ssid, signal = '', -100
             nets.sort(key=lambda n: n['signal'], reverse=True)
             self._nets = nets
         except: self._nets = []
