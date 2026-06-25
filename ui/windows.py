@@ -1188,6 +1188,7 @@ class WifiWindow(BaseWindow):
         self._status_visible = False
         self._press_ssid = None    # SSID under a pending press (tap vs scroll)
         self._press_moved = False
+        self._items = []           # List of (ssid, x1, y1, x2, y2) hit zones
         # Country selection now lives in SETTINGS. WiFi window always goes
         # straight to network scan. (We still write a default if the user
         # somehow opens WiFi without ever visiting Settings — keeps `nmcli`
