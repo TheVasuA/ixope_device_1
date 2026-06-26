@@ -749,10 +749,10 @@ class SettingsWindow(BaseWindow):
         self.cv.create_text(cx, s1y, text="THEME",
                             fill=section_lbl, font=section_font, tags="c")
         ty = s1y + 20
-        self._glass_pill(cx - 56, ty, "DARK",
-                         w=98, h=26, active=(self.mode == 'dark'))
-        self._glass_pill(cx + 56, ty, "LIGHT",
-                         w=98, h=26, active=(self.mode == 'light'))
+        self._glass_pill(cx - 50, ty, "DARK",
+                         w=90, h=26, active=(self.mode == 'dark'))
+        self._glass_pill(cx + 50, ty, "LIGHT",
+                         w=90, h=26, active=(self.mode == 'light'))
 
         # ─── Section 2: ICON STYLE ────────────────────────────────────
         s2y = top + sec_h + 2
@@ -806,8 +806,8 @@ class SettingsWindow(BaseWindow):
 
         # Hit zones
         self._zones = {
-            'dark':     (cx - 110, ty - 14, cx - 6,   ty + 14),
-            'light':    (cx + 6,   ty - 14, cx + 110, ty + 14),
+            'dark':     (cx - 95, ty - 14, cx - 5,  ty + 14),
+            'light':    (cx + 5,  ty - 14, cx + 95, ty + 14),
             'region':   (cx - 100, ry - 14, cx + 100, ry + 14),
             'camera':   (cx - 100, s5y - 15, cx + 100, s5y + 15),
             'reset':    (cx - (pill_w // 2 + gap // 2) - pill_w // 2, ay - 17,
