@@ -79,9 +79,17 @@ BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_IXOPE_PATH)/board/ixope/create-sdca
 # ═══════════════════════════════════════════════════════════════════════
 BR2_PACKAGE_PYTHON3=y
 BR2_PACKAGE_PYTHON_PILLOW=y
+BR2_PACKAGE_PYTHON_PILLOW_JPEG=y
 BR2_PACKAGE_PYTHON_NUMPY=y
 BR2_PACKAGE_PYTHON_FLASK=y
 BR2_PACKAGE_PYTHON_REQUESTS=y
+
+# ═══════════════════════════════════════════════════════════════════════
+# IMAGE LIBRARIES (required by Pillow and OpenCV for JPEG/PNG)
+# ═══════════════════════════════════════════════════════════════════════
+BR2_PACKAGE_JPEG=y
+BR2_PACKAGE_LIBPNG=y
+BR2_PACKAGE_ZLIB=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # OPENCV (with Python bindings for cv2)
@@ -114,7 +122,6 @@ BR2_PACKAGE_TK=y
 BR2_PACKAGE_XCB_UTIL=y
 BR2_PACKAGE_FONTCONFIG=y
 BR2_PACKAGE_XLIB_LIBXT=y
-BR2_PACKAGE_ZLIB=y
 BR2_PACKAGE_DEJAVU=y
 BR2_PACKAGE_LIBERATION=y
 
