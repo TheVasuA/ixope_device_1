@@ -89,8 +89,18 @@ no-auto-default=*
 EOF
 
 # ─── WiFi firmware symlink ─────────────────────────────────────────────
+# AIC8800 driver uses request_firmware() which looks in /lib/firmware/
+# directly, but files are installed under /lib/firmware/aic8800D80/
+# Create symlinks so the driver can find them
 mkdir -p "$TARGET_DIR/vendor/etc"
 ln -sf /lib/firmware/aic8800D80 "$TARGET_DIR/vendor/etc/firmware"
+if [ -d "$TARGET_DIR/lib/firmware/aic8800D80" ]; then
+    cd "$TARGET_DIR/lib/firmware"
+    for f in aic8800D80/*; do
+        [ -f "$f" ] && ln -sf "$f" . 2>/dev/null
+    done
+    cd "$BOARD_DIR"
+fi
 
 # ─── U-Boot splash logo ────────────────────────────────────────────────
 # Copy deploy/logo.bmp to /boot/splash.bmp so U-Boot can load it

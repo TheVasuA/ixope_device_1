@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-AIC8800_WIFI_VERSION = d5e11d4b9166d4159ffb4d4baadfcdb07d482e20
+AIC8800_WIFI_VERSION = 6ec370a
 AIC8800_WIFI_SITE = $(call github,radxa-pkg,aic8800,$(AIC8800_WIFI_VERSION))
 AIC8800_WIFI_LICENSE = GPL-2.0+
 AIC8800_WIFI_LICENSE_FILES = LICENSE
