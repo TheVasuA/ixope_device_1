@@ -12,9 +12,12 @@ import threading
 import json
 import math
 import time
+import logging
 import cv2
 from ..config import settings
 from ..storage import FileManager
+
+log = logging.getLogger(__name__)
 
 
 def _get_theme():
@@ -310,6 +313,10 @@ class BaseWindow:
             self._pill_cache.clear()
         if hasattr(self, '_card_cache'):
             self._card_cache.clear()
+        if hasattr(self, '_thumbs'):
+            self._thumbs.clear()
+        if hasattr(self, '_pphoto'):
+            self._pphoto = None
         # Restore icons on the main camera screen
         if self.main_app and hasattr(self.main_app, '_show_all_icons'):
             self.main_app._show_all_icons()
@@ -2262,26 +2269,44 @@ class FolderWindow(BaseWindow):
         return os.path.join(settings.SCOPE_VIDEO_FOLDERS.get(item.get('scope',''), settings.VIDEO_BASE), fn)
 
     def _make_thumb(self, item, size):
-        """Rounded square thumbnail."""
+        """Rounded square thumbnail using Pillow for JPEG/PNG reading."""
         fp = self._fpath(item)
         img = None
         try:
             if self._tab == 'images' and os.path.exists(fp):
                 img = Image.open(fp)
+                img.load()  # Force decode now so errors surface here
             elif self._tab == 'videos' and os.path.exists(fp):
-                cap = cv2.VideoCapture(fp); ret, f = cap.read(); cap.release()
-                if ret: img = Image.fromarray(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
-        except: pass
+                cap = cv2.VideoCapture(fp)
+                ret, f = cap.read()
+                cap.release()
+                if ret:
+                    img = Image.fromarray(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
+        except Exception as e:
+            log.warning(f"Gallery thumb failed for {fp}: {e}")
+            img = None
+
         t = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         d = ImageDraw.Draw(t)
         r = size // 5
         d.rounded_rectangle([0, 0, size-1, size-1], radius=r, fill=(30, 30, 42, 255))
         if img:
+            # Convert to RGB if needed (handles RGBA PNGs, palette images, etc.)
+            if img.mode not in ('RGB', 'RGBA'):
+                img = img.convert('RGB')
             img.thumbnail((size-4, size-4), Image.LANCZOS)
-            t.paste(img, ((size-img.width)//2, (size-img.height)//2))
+            # Paste with proper alpha handling
+            paste_img = img.convert('RGBA') if img.mode != 'RGBA' else img
+            t.paste(paste_img, ((size - img.width) // 2, (size - img.height) // 2), paste_img)
             mask = Image.new("L", (size, size), 0)
             ImageDraw.Draw(mask).rounded_rectangle([0, 0, size-1, size-1], radius=r, fill=255)
             t.putalpha(mask)
+        else:
+            # Draw a visible "no image" indicator so it's not just a dark square
+            d.line([(size//4, size//4), (3*size//4, 3*size//4)],
+                   fill=(100, 100, 120, 200), width=2)
+            d.line([(3*size//4, size//4), (size//4, 3*size//4)],
+                   fill=(100, 100, 120, 200), width=2)
         if self._tab == 'videos':
             d2 = ImageDraw.Draw(t)
             d2.polygon([(size//2-7, size//2-9),(size//2-7, size//2+9),(size//2+9, size//2)], fill=(255,255,255,180))
@@ -2293,7 +2318,25 @@ class FolderWindow(BaseWindow):
         cx, c = self.CX, self.c
         self._load()
 
-        # ─── Title ─────────────────────────────────────────────────────
+        # Always draw EXIT first so the user is never trapped
+        action_y = self.ACTION_Y + 6
+        exit_w, h = 90, 34
+        self._glass_pill(cx, action_y, "EXIT", w=exit_w, h=h, danger=True,
+                         font=(_SF_FONT, 13, "bold"))
+        self._exit_zone = (cx - exit_w // 2, action_y - h // 2,
+                           cx + exit_w // 2, action_y + h // 2)
+
+        try:
+            self._draw_grid_content(cx, c, action_y)
+        except Exception as e:
+            log.error(f"Gallery grid draw error: {e}")
+            self.cv.create_text(cx, self.CY,
+                                text="Gallery error",
+                                fill=c.get('danger', '#ff3b30'),
+                                font=(_SF_FONT, 14, "bold"), tags="c")
+
+    def _draw_grid_content(self, cx, c, action_y):
+        """Internal: renders tabs, thumbnails, navigation. May raise."""        # ─── Title ─────────────────────────────────────────────────────
         # Title sits at TITLE_Y already drawn by BaseWindow. Just keep
         # tight spacing below it.
 
@@ -2384,10 +2427,11 @@ class FolderWindow(BaseWindow):
                             fill=c['text_secondary'],
                             font=(_SF_FONT, 11, "bold"), tags="c")
 
-        # ─── Action row: ◀  EXIT  ▶ ───────────────────────────────────
+        # ─── Action row: ◀  ▶ (EXIT already drawn above) ──────────────
         ay = action_y
-        nav_w, exit_w, h = 48, 90, 34
+        nav_w, h = 48, 34
         nav_gap = 14
+        exit_w = 90
         prev_x = cx - (exit_w // 2 + nav_gap + nav_w // 2)
         next_x = cx + (exit_w // 2 + nav_gap + nav_w // 2)
 
@@ -2398,11 +2442,6 @@ class FolderWindow(BaseWindow):
                             prev_x + nav_w // 2, ay + h // 2)
         else:
             self._prevpz = (-1, -1, -1, -1)
-
-        self._glass_pill(cx, ay, "EXIT", w=exit_w, h=h, danger=True,
-                         font=(_SF_FONT, 13, "bold"))
-        self._exit_zone = (cx - exit_w // 2, ay - h // 2,
-                           cx + exit_w // 2, ay + h // 2)
 
         if self._items and (self._page + 1) * self.PER_PAGE < len(self._items):
             self._glass_pill(next_x, ay, "▶", w=nav_w, h=h,
@@ -2426,12 +2465,21 @@ class FolderWindow(BaseWindow):
             fp = self._fpath(item)
             if os.path.exists(fp):
                 img = Image.open(fp)
+                img.load()  # Force full decode
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGB')
                 img.thumbnail((self.SR * 2 - 20, self.SR * 2 - 80),
                               Image.LANCZOS)
                 self._pphoto = ImageTk.PhotoImage(img)
                 self.cv.create_image(cx, self.CY - 18,
                                      image=self._pphoto, tags="c")
-        except Exception:
+            else:
+                self.cv.create_text(cx, self.CY, text="File not found",
+                                    fill=c['danger'],
+                                    font=(_SF_FONT, 13, "bold"), tags="c")
+                log.warning(f"Gallery preview: file not found: {fp}")
+        except Exception as e:
+            log.warning(f"Gallery preview failed for {item.get('filename','?')}: {e}")
             self.cv.create_text(cx, self.CY, text="Cannot open",
                                 fill=c['danger'],
                                 font=(_SF_FONT, 13, "bold"), tags="c")
