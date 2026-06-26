@@ -761,12 +761,11 @@ class SettingsWindow(BaseWindow):
         isy = s2y + 20
         self._schz = {}
         for i, (sid, lbl) in enumerate([('glass', 'GLASS'),
-                                        ('white', 'WHITE'),
                                         ('color', 'COLOR')]):
-            sx = cx - 84 + i * 84
-            self._glass_pill(sx, isy, lbl, w=78, h=24,
+            sx = cx - 50 + i * 100
+            self._glass_pill(sx, isy, lbl, w=90, h=24,
                              active=(sid == self._isch))
-            self._schz[sid] = (sx - 39, isy - 12, sx + 39, isy + 12)
+            self._schz[sid] = (sx - 45, isy - 12, sx + 45, isy + 12)
 
         # ─── Section 3: ICON HIDE DELAY ───────────────────────────────
         s3y = top + sec_h * 2 + 2
