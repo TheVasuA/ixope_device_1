@@ -1,29 +1,32 @@
 # U-Boot Splash Logo
 
-U-Boot requires a **BMP** file for splash display.
+## Source File
 
-## How to create the splash BMP
+The boot splash logo is stored at:
 
-Convert your `boot_logo.gif` to an uncompressed 480x480 BMP:
-
-```bash
-# On your build machine:
-convert deploy/boot_logo.gif -resize 480x480 -type TrueColor BMP3:buildroot-external/board/ixope/splash.bmp
+```
+deploy/logo.bmp
 ```
 
-Or using Python/Pillow:
+This is a 480x480 24-bit uncompressed BMP file used directly by U-Boot.
 
-```python
-from PIL import Image
-img = Image.open("deploy/boot_logo.gif")
-img = img.resize((480, 480))
-img.save("buildroot-external/board/ixope/splash.bmp", "BMP")
+## How It Gets to the Device
+
+During the Buildroot build, `post-build.sh` copies:
+
+```
+deploy/logo.bmp → /boot/splash.bmp (on the rootfs)
 ```
 
-The splash.bmp must be placed in the rootfs at `/boot/splash.bmp` (done by post-build.sh).
+U-Boot loads `/boot/splash.bmp` from the boot partition and displays it
+on the DSI panel at ~0.5s after power-on, before the kernel starts.
+The logo stays visible for 3 seconds.
 
-## How it works
+## To Replace the Logo
 
-U-Boot loads the BMP from the boot partition and draws it to the display
-at about 0.5 seconds after power-on — before the kernel even starts.
-This ensures the screen is never blank.
+Simply replace `deploy/logo.bmp` with a new 480x480 BMP file and rebuild.
+
+Requirements:
+- Format: BMP (uncompressed, 24-bit or 32-bit)
+- Size: 480x480 pixels (matches DSI panel resolution)
+- No conversion needed — file is used as-is

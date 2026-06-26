@@ -92,6 +92,19 @@ EOF
 mkdir -p "$TARGET_DIR/vendor/etc"
 ln -sf /lib/firmware/aic8800D80 "$TARGET_DIR/vendor/etc/firmware"
 
+# ─── U-Boot splash logo ────────────────────────────────────────────────
+# Copy deploy/logo.bmp to /boot/splash.bmp so U-Boot can load it
+IXOPE_ROOT="$(cd "$BOARD_DIR/../../../" && pwd)"
+LOGO_SRC="$IXOPE_ROOT/deploy/logo.bmp"
+if [ -f "$LOGO_SRC" ]; then
+    cp "$LOGO_SRC" "$TARGET_DIR/boot/splash.bmp"
+    echo "[OK] Splash logo copied from deploy/logo.bmp to /boot/splash.bmp"
+else
+    echo "[FAIL] deploy/logo.bmp not found at $LOGO_SRC"
+    echo "       Place your 480x480 BMP logo at: deploy/logo.bmp"
+    exit 1
+fi
+
 # ─── boot.scr fallback ────────────────────────────────────────────────
 if command -v mkimage >/dev/null 2>&1; then
     mkimage -C none -A arm64 -T script -d "$BOARD_DIR/boot.cmd" \

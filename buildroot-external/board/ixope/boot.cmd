@@ -1,8 +1,14 @@
-# U-Boot boot script for IXOPE — fast direct boot, no scanning
+# U-Boot boot script for IXOPE — splash logo + fast direct boot
 # Compile with: mkimage -C none -A arm64 -T script -d boot.cmd boot.scr
 #
 # This is a FALLBACK if extlinux.conf is not found.
 # Primary boot method is via extlinux.conf (set in uboot.fragment).
+
+# Show splash logo for 3 seconds
+if load mmc 1:1 0x02000000 /boot/splash.bmp; then
+    bmp display 0x02000000
+    sleep 3
+fi
 
 # Load kernel + DTB from SD card (mmc 1, partition 1)
 load mmc 1:1 0x02080000 /boot/Image

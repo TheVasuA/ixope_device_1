@@ -1,29 +1,44 @@
-# IXOPE U-Boot Config Fragment — Silent Fast Boot for RK3566
-# Target: boot kernel in < 1.5s from U-Boot start, ZERO console output
+# IXOPE U-Boot Config Fragment — Fast Boot + 3s Splash Logo for RK3566
+# Target: Show logo at 0.5s, hold for 3s, then boot kernel
 
-# Zero boot delay — instant boot, no interactive prompt
+# ─── Boot Timing ──────────────────────────────────────────────────────
+# Zero boot delay — no interactive prompt, auto-boot immediately
 CONFIG_BOOTDELAY=0
 CONFIG_AUTOBOOT=y
 
-# Boot directly from MMC via extlinux
+# Boot command: load splash → display 3s → boot kernel via extlinux
 CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTCOMMAND="sysboot mmc 1:1 any 0x02000000 /boot/extlinux/extlinux.conf"
+CONFIG_BOOTCOMMAND="if load mmc 1:1 0x02000000 /boot/splash.bmp; then bmp display 0x02000000; sleep 3; fi; sysboot mmc 1:1 any 0x02000000 /boot/extlinux/extlinux.conf"
 
-# SILENT CONSOLE — no serial output from U-Boot
+# ─── Video / Splash ───────────────────────────────────────────────────
+# Enable video subsystem for DSI panel splash
+CONFIG_VIDEO=y
+CONFIG_DM_VIDEO=y
+CONFIG_VIDEO_ROCKCHIP=y
+CONFIG_DISPLAY=y
+
+# BMP splash support
+CONFIG_SPLASH_SCREEN=y
+CONFIG_SPLASH_SCREEN_ALIGN=y
+CONFIG_CMD_BMP=y
+CONFIG_BMP_16BPP=y
+CONFIG_BMP_24BPP=y
+CONFIG_BMP_32BPP=y
+CONFIG_VIDEO_BMP_RLE8=y
+CONFIG_VIDEO_BMP_GZIP=y
+
+# ─── Silent Console ──────────────────────────────────────────────────
+# No serial output from U-Boot (clean boot)
 CONFIG_SILENT_CONSOLE=y
 CONFIG_SYS_DEVICE_NULLDEV=y
 CONFIG_SILENT_CONSOLE_UPDATE_ON_SET=y
-
-# Suppress board info display
 CONFIG_SYS_CONSOLE_INFO_QUIET=y
 CONFIG_DISPLAY_BOARDINFO=n
 CONFIG_DISPLAY_BOARDINFO_LATE=n
 CONFIG_LOGLEVEL=0
-
-# Set silent=1 in default environment
 CONFIG_EXTRA_ENV_SETTINGS="silent=1\0"
 
-# Disable ALL unnecessary subsystem probing (saves 1-2s)
+# ─── Disable Unnecessary Subsystems (saves boot time) ────────────────
 CONFIG_CMD_USB=n
 CONFIG_USB_STORAGE=n
 CONFIG_USB_KEYBOARD=n
@@ -38,11 +53,6 @@ CONFIG_CMD_SCSI=n
 CONFIG_NVME=n
 CONFIG_CMD_NVME=n
 
-# Disable video subsystem in U-Boot (kernel handles DSI panel)
-CONFIG_VIDEO=n
-CONFIG_DM_VIDEO=n
-CONFIG_DISPLAY=n
-CONFIG_VIDEO_ROCKCHIP=n
-
-# Use external TPL (Rockchip DDR binary)
+# ─── Boot Blobs ──────────────────────────────────────────────────────
+# Use external TPL (Rockchip DDR binary from download-blobs.sh)
 CONFIG_ROCKCHIP_EXTERNAL_TPL=y
