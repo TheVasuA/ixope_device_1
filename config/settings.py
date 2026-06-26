@@ -81,7 +81,10 @@ I2C_BUS = 11
 ARDUINO_ADDRESS = 0x08
 
 # ─── UART (alternative to I2C for LED control) ───────────────────────────────
-UART_PORT = "/dev/ttyS0"
+# ─── UART (for STM32 LED/focus controller) ───────────────────────────
+# NOTE: /dev/ttyS2 is the debug console (pins 8/10). Do NOT use it.
+# Use UART4 (/dev/ttyS4) on GPIO header for STM32 communication.
+UART_PORT = "/dev/ttyS4"
 UART_BAUDRATE = 9600
 
 # ─── LED Configurations ──────────────────────────────────────────────────────

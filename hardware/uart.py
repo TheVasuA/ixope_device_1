@@ -44,7 +44,6 @@ class UARTBus:
         Thread-safe. Appends newline for Arduino Serial.readStringUntil().
         """
         if not self.is_available:
-            print(f"UART cmd (no port): {cmd}")
             return False
 
         with self._lock:

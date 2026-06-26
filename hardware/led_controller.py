@@ -127,7 +127,6 @@ class LEDController:
         """Send command via UART."""
         if self._uart.is_available:
             return self._uart.write_command(cmd)
-        print(f"LED cmd (no UART): {cmd}")
         return False
 
     def close(self):
