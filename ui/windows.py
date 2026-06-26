@@ -305,6 +305,11 @@ class BaseWindow:
             try: self.win.destroy()
             except: pass
             self.win = None
+        # Clear image caches to prevent stale PhotoImage references
+        if hasattr(self, '_pill_cache'):
+            self._pill_cache.clear()
+        if hasattr(self, '_card_cache'):
+            self._card_cache.clear()
         # Restore icons on the main camera screen
         if self.main_app and hasattr(self.main_app, '_show_all_icons'):
             self.main_app._show_all_icons()
