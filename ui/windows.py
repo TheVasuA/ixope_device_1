@@ -797,15 +797,13 @@ class SettingsWindow(BaseWindow):
                          active=True,
                          font=(_SF_FONT, 12, "bold"))
 
-        # ─── Action row: RESET / SHUTDOWN / EXIT ──────────────────────
+        # ─── Action row: RESET / EXIT ─────────────────────────────────
         ay = self.ACTION_Y + 4
         chord = self._safe_width(ay) - 28
-        pill_w = max(78, min(102, (chord - 20) // 3))
-        gap = 10
-        self._glass_pill(cx - (pill_w + gap), ay, "RESET", w=pill_w, h=34)
-        self._glass_pill(cx,                  ay, "SHUTDOWN",
-                         w=pill_w, h=34, danger=True)
-        self._glass_pill(cx + (pill_w + gap), ay, "EXIT", w=pill_w, h=34)
+        pill_w = max(78, min(102, (chord - 20) // 2))
+        gap = 14
+        self._glass_pill(cx - (pill_w // 2 + gap // 2), ay, "RESET", w=pill_w, h=34)
+        self._glass_pill(cx + (pill_w // 2 + gap // 2), ay, "EXIT", w=pill_w, h=34)
 
         # Hit zones
         self._zones = {
@@ -813,45 +811,11 @@ class SettingsWindow(BaseWindow):
             'light':    (cx + 6,   ty - 14, cx + 110, ty + 14),
             'region':   (cx - 100, ry - 14, cx + 100, ry + 14),
             'camera':   (cx - 100, s5y - 15, cx + 100, s5y + 15),
-            'reset':    (cx - (pill_w + gap) - pill_w // 2, ay - 17,
-                         cx - (pill_w + gap) + pill_w // 2, ay + 17),
-            'shutdown': (cx - pill_w // 2, ay - 17, cx + pill_w // 2, ay + 17),
-            'exit':     (cx + (pill_w + gap) - pill_w // 2, ay - 17,
-                         cx + (pill_w + gap) + pill_w // 2, ay + 17),
+            'reset':    (cx - (pill_w // 2 + gap // 2) - pill_w // 2, ay - 17,
+                         cx - (pill_w // 2 + gap // 2) + pill_w // 2, ay + 17),
+            'exit':     (cx + (pill_w // 2 + gap // 2) - pill_w // 2, ay - 17,
+                         cx + (pill_w // 2 + gap // 2) + pill_w // 2, ay + 17),
         }
-        if self._shutdown_confirm:
-            overlay_w = self._safe_width(self.CY) - 40
-            overlay_h = 150
-            ox1 = cx - overlay_w // 2
-            oy1 = 120
-            ox2 = cx + overlay_w // 2
-            oy2 = oy1 + overlay_h
-            self._smooth_card(ox1, oy1, ox2, oy2,
-                              fill=self.c['card_bg'],
-                              border=(self.c['accent'], 2),
-                              tag='c')
-            self.cv.create_text(cx, oy1 + 26,
-                                text="Confirm shutdown",
-                                fill=self.c['text'],
-                                font=(_SF_FONT, 14, "bold"),
-                                tags="c")
-            self.cv.create_text(cx, oy1 + 58,
-                                text="Are you sure you want to shut down?",
-                                fill=self.c['text_secondary'],
-                                font=(_SF_FONT, 12),
-                                tags="c")
-            self._glass_pill(cx - 64, oy2 - 32, "CANCEL",
-                             w=120, h=34, tag='c')
-            self._glass_pill(cx + 64, oy2 - 32, "SHUTDOWN",
-                             w=120, h=34, danger=True, tag='c')
-            self._shutdown_confirm_z = {
-                'cancel':   (cx - 64 - 60, oy2 - 32 - 17,
-                             cx - 64 + 60, oy2 - 32 + 17),
-                'shutdown': (cx + 64 - 60, oy2 - 32 - 17,
-                             cx + 64 + 60, oy2 - 32 + 17),
-            }
-        else:
-            self._shutdown_confirm_z = None
 
     # --- REGION sub-page: WiFi-style scrollable country list ---
     def _draw_country(self):
@@ -1018,27 +982,10 @@ class SettingsWindow(BaseWindow):
             return
 
         # ─── Main page ────────────────────────────────────────────────
-        if self._shutdown_confirm and self._shutdown_confirm_z:
-            for n, (x1, y1, x2, y2) in self._shutdown_confirm_z.items():
-                if x1 <= x <= x2 and y1 <= y <= y2:
-                    if n == 'cancel':
-                        self._shutdown_confirm = False
-                        self._refresh()
-                        return
-                    if n == 'shutdown':
-                        self._shutdown_confirm = False
-                        self._perform_shutdown()
-                        return
-            return
-
         for n, (x1, y1, x2, y2) in self._zones.items():
             if x1 <= x <= x2 and y1 <= y <= y2:
                 if   n == 'dark':     self._setmode('dark')
                 elif n == 'light':    self._setmode('light')
-                elif n == 'shutdown':
-                    self._shutdown_confirm = True
-                    self._refresh()
-                    return
                 elif n == 'exit':     self.close()
                 elif n == 'reset':    self._reset_defaults()
                 elif n == 'camera':
