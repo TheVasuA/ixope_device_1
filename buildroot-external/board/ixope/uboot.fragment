@@ -6,9 +6,13 @@
 CONFIG_BOOTDELAY=0
 CONFIG_AUTOBOOT=y
 
-# Boot command: load splash → display 3s → boot kernel via extlinux
+# Boot command: load splash → display 3s → boot kernel directly
 CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTCOMMAND="if load mmc 1:1 0x02000000 /boot/splash.bmp; then bmp display 0x02000000; sleep 3; fi; sysboot mmc 1:1 any 0x02000000 /boot/extlinux/extlinux.conf"
+CONFIG_BOOTCOMMAND="if load mmc 1:1 0x02000000 /boot/splash.bmp; then bmp display 0x02000000; sleep 3; fi; load mmc 1:1 0x02080000 /boot/Image; load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb; setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0; booti 0x02080000 - 0x0a100000"
+
+# Enable sysboot/extlinux support (alternative boot method)
+CONFIG_CMD_PXE=y
+CONFIG_CMD_SYSBOOT=y
 
 # ─── Video / Splash ───────────────────────────────────────────────────
 # Enable video subsystem for DSI panel splash
@@ -42,7 +46,6 @@ CONFIG_EXTRA_ENV_SETTINGS="silent=1\0"
 CONFIG_CMD_USB=n
 CONFIG_USB_STORAGE=n
 CONFIG_USB_KEYBOARD=n
-CONFIG_CMD_PXE=n
 CONFIG_CMD_DHCP=n
 CONFIG_CMD_NET=n
 CONFIG_CMD_NFS=n
