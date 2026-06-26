@@ -25,8 +25,9 @@ CAMERA_MAX_INDEX = 5
 FRAME_QUEUE_SIZE = 2  # Keep only latest frames, drop old ones
 
 # ─── Recording ────────────────────────────────────────────────────────────────
-MAX_RECORD_SECONDS = 10
-VIDEO_CODECS = ['avc1', 'X264', 'H264', 'mp4v', 'MJPG', 'XVID']
+MAX_RECORD_SECONDS = 30
+# MJPG first — h264_v4l2m2m not available on this board, software h264 too slow
+VIDEO_CODECS = ['MJPG', 'mp4v', 'XVID', 'avc1', 'X264', 'H264']
 VIDEO_FPS = 30
 
 # ─── Paths ────────────────────────────────────────────────────────────────────

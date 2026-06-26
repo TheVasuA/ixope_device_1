@@ -73,9 +73,13 @@ class Recorder:
         for codec in settings.VIDEO_CODECS:
             try:
                 fourcc = cv2.VideoWriter_fourcc(*codec)
+                # Use .avi for MJPG codec, .mp4 for others
+                if codec == 'MJPG' and self._video_path.endswith('.mp4'):
+                    self._video_path = self._video_path[:-4] + '.avi'
                 writer = cv2.VideoWriter(self._video_path, fourcc, settings.VIDEO_FPS, (w, h))
                 if writer.isOpened():
                     self._writer = writer
+                    print(f"Recording codec: {codec}")
                     break
                 writer.release()
             except:
