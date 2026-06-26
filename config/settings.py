@@ -77,9 +77,10 @@ SCOPE_VIDEO_FOLDERS = {
 }
 
 # ─── UART (STM32 LED/focus controller) ───────────────────────────────
-# /dev/ttyS1 = UART1 on GPIO header (STM32 communication)
-# /dev/ttyS2 = debug console (pins 8/10, 1500000 baud) — do NOT use
-UART_PORT = "/dev/ttyS1"
+# Pin 16 = GPIO3_B1 = UART3_RX
+# Pin 18 = GPIO3_B2 = UART3_TX
+# /dev/ttyS2 = debug console (pins 8/10) — do NOT use
+UART_PORT = "/dev/ttyS3"
 UART_BAUDRATE = 115200
 
 # ─── LED Configurations ──────────────────────────────────────────────────────
