@@ -1,0 +1,19 @@
+// Device Tree Overlay — Enable UART3 on GPIO3_B1/B2 (pins 16/18)
+// For Radxa Zero 3W (RK3566)
+// Apply with: fdtoverlay -i base.dtb -o merged.dtb uart3-enable.dtbo
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "rockchip,rk3566";
+
+	fragment@0 {
+		target = <&uart3>;
+		__overlay__ {
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart3m1_xfer>;
+		};
+	};
+};

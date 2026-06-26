@@ -123,3 +123,14 @@
 		touchscreen-size-y = <480>;
 	};
 };
+
+/* ═══════════════════════════════════════════════════════════════
+ * UART3 — STM32 LED/focus controller
+ * Pin 16 = GPIO3_B1 = UART3_RXM1
+ * Pin 18 = GPIO3_B2 = UART3_TXM1
+ * ═══════════════════════════════════════════════════════════════ */
+&uart3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3m1_xfer>;
+};

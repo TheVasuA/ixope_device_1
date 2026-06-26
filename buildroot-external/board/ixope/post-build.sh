@@ -121,6 +121,16 @@ if command -v mkimage >/dev/null 2>&1; then
         "$TARGET_DIR/boot/boot.scr" >/dev/null 2>&1
 fi
 
+# ─── Enable UART3 in device tree (for STM32 on pins 16/18) ────────────
+# The stock DTB has uart3 disabled. Enable it via fdtput if available.
+DTB_FILE="$TARGET_DIR/boot/rk3566-radxa-zero-3w-ap6212.dtb"
+if [ -f "$DTB_FILE" ] && command -v fdtput >/dev/null 2>&1; then
+    fdtput -t s "$DTB_FILE" /serial@fe670000 status "okay"
+    echo "[OK] UART3 enabled in DTB"
+elif [ -f "$DTB_FILE" ]; then
+    echo "[WARN] fdtput not available, UART3 may not be enabled"
+fi
+
 # ─── Data directories ─────────────────────────────────────────────────
 mkdir -p "$TARGET_DIR/var/ixope-data"
 mkdir -p "$TARGET_DIR/etc/dropbear"
