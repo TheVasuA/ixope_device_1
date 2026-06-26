@@ -1,11 +1,13 @@
 #!/bin/sh
-# IXOPE — Start dbus + NetworkManager for WiFi (AIC8800)
+# IXOPE — Start dbus + NetworkManager for WiFi (AIC8800) aic8800_fdrv
 # No blocking waits — NetworkManager handles wlan0 detection itself
 case "$1" in
   start)
     mkdir -p /var/run/dbus
     [ -x /usr/bin/dbus-daemon ] && dbus-daemon --system --fork 2>/dev/null
     [ -x /usr/sbin/NetworkManager ] && NetworkManager 2>/dev/null
+    # Sync time in background once network is up (needed for SSL)
+    (sleep 15 && ntpdate -s pool.ntp.org 2>/dev/null) &
     ;;
   stop)
     killall NetworkManager 2>/dev/null

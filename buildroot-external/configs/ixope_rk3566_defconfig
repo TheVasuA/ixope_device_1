@@ -94,6 +94,8 @@ BR2_PACKAGE_OPENCV4_LIB_IMGCODECS=y
 BR2_PACKAGE_OPENCV4_LIB_PYTHON=y
 BR2_PACKAGE_OPENCV4_WITH_FFMPEG=y
 BR2_PACKAGE_OPENCV4_WITH_V4L=y
+BR2_PACKAGE_OPENCV4_WITH_JPEG=y
+BR2_PACKAGE_OPENCV4_WITH_PNG=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # DISPLAY (minimal X11 for Tkinter)
@@ -151,6 +153,8 @@ BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UNCLUTTER=y
 BR2_PACKAGE_HTOP=y
 BR2_PACKAGE_DROPBEAR=y
+BR2_PACKAGE_NTP=y
+BR2_PACKAGE_NTP_NTPDATE=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # IXOPE APP
