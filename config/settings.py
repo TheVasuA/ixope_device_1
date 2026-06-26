@@ -76,14 +76,9 @@ SCOPE_VIDEO_FOLDERS = {
     'micro': os.path.join(VIDEO_BASE, "micro"),
 }
 
-# ─── I2C / Hardware ──────────────────────────────────────────────────────────
-I2C_BUS = 11
-ARDUINO_ADDRESS = 0x08
-
-# ─── UART (alternative to I2C for LED control) ───────────────────────────────
-# ─── UART (for STM32 LED/focus controller) ───────────────────────────
-# NOTE: /dev/ttyS2 is the debug console (pins 8/10). Do NOT use it.
-# Use UART4 (/dev/ttyS4) on GPIO header for STM32 communication.
+# ─── UART (STM32 LED/focus controller) ───────────────────────────────
+# /dev/ttyS1 = UART1 on GPIO header (STM32 communication)
+# /dev/ttyS2 = debug console (pins 8/10, 1500000 baud) — do NOT use
 UART_PORT = "/dev/ttyS1"
 UART_BAUDRATE = 115200
 

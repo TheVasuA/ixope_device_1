@@ -82,7 +82,6 @@ BR2_PACKAGE_PYTHON_PILLOW=y
 BR2_PACKAGE_PYTHON_NUMPY=y
 BR2_PACKAGE_PYTHON_FLASK=y
 BR2_PACKAGE_PYTHON_REQUESTS=y
-BR2_PACKAGE_PYTHON_SMBUS2=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # OPENCV (with Python bindings for cv2)
@@ -142,9 +141,8 @@ BR2_PACKAGE_READLINE=y
 BR2_PACKAGE_LIBGLIB2=y
 
 # ═══════════════════════════════════════════════════════════════════════
-# HARDWARE (I2C, serial, GPIO)
+# HARDWARE (serial, GPIO)
 # ═══════════════════════════════════════════════════════════════════════
-BR2_PACKAGE_I2C_TOOLS=y
 
 # ═══════════════════════════════════════════════════════════════════════
 # UTILITIES
