@@ -85,7 +85,7 @@ ARDUINO_ADDRESS = 0x08
 # NOTE: /dev/ttyS2 is the debug console (pins 8/10). Do NOT use it.
 # Use UART4 (/dev/ttyS4) on GPIO header for STM32 communication.
 UART_PORT = "/dev/ttyS1"
-UART_BAUDRATE = 9600
+UART_BAUDRATE = 115200
 
 # ─── LED Configurations ──────────────────────────────────────────────────────
 # Protocol: *XY# where X=LED number (1-6), Y=brightness (0=off, 1-9=10%-90%)
