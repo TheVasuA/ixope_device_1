@@ -534,6 +534,12 @@ class MedicalUI:
                         self.canvas.itemconfig(item, image=icon)
                 except tk.TclError:
                     pass
+            # Low battery warning: flash alert when below 10%
+            if level <= 10 and not getattr(self, '_low_batt_warned', False):
+                self._low_batt_warned = True
+                self._show_message("⚠ Low Battery", color="#ff453a", duration=5000)
+            elif level > 15:
+                self._low_batt_warned = False
 
     @staticmethod
     def _read_battery_capacity():
