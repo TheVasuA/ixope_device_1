@@ -8,7 +8,7 @@ CONFIG_AUTOBOOT=y
 
 # Boot command: load kernel + DTB directly, no splash, no video init
 CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTCOMMAND="load mmc 1:1 0x02080000 /boot/Image; load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb; setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 udev.event_timeout=2 random.trust_cpu=on loop.max_loop=4; booti 0x02080000 - 0x0a100000"
+CONFIG_BOOTCOMMAND="load mmc 1:1 0x02080000 /boot/Image; load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb; setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 udev.event_timeout=5 loop.max_loop=4; booti 0x02080000 - 0x0a100000"
 
 # Enable sysboot/extlinux support (alternative boot method)
 CONFIG_CMD_PXE=y
