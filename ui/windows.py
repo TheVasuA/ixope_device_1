@@ -1642,11 +1642,18 @@ class WifiWindow(BaseWindow):
         self._show_connecting()
 
     def _do_disconnect(self):
-        """Disconnect the current WiFi network and return to scan."""
+        """Disconnect and FORGET the current WiFi network (won't reconnect on reboot)."""
+        ssid_to_forget = self._ssid
+
         def go():
             try:
-                subprocess.run(['nmcli', 'dev', 'disconnect', 'wlan0'],
-                               capture_output=True, text=True, timeout=10)
+                # Delete the saved connection profile — prevents auto-reconnect on reboot
+                if ssid_to_forget:
+                    subprocess.run(['nmcli', 'connection', 'delete', ssid_to_forget],
+                                   capture_output=True, text=True, timeout=10)
+                else:
+                    subprocess.run(['nmcli', 'dev', 'disconnect', 'wlan0'],
+                                   capture_output=True, text=True, timeout=10)
             except Exception:
                 pass
             # Fallback: kill wpa_supplicant and bring interface down
