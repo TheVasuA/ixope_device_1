@@ -630,26 +630,47 @@ class MedicalUI:
         self._reset_hide_timer()
 
     def _on_drag(self, event):
-        """Handle drag for sliders OR right-edge zoom gesture."""
+        """Handle drag for sliders OR edge swipe gestures.
+        
+        Right side (x > 380): Zoom control (drag up = zoom in)
+        Left side (x < 100): Focus control (drag up = focus far, down = near)
+        """
         if self._sliders.visible:
             self._sliders.handle_drag(event.x, event.y)
             return
 
-        # Right-edge vertical drag = zoom control (works on any touchscreen)
-        # Zone: right 60px of the screen, only when icons are visible (not in a window)
-        if not getattr(self, '_window_open', False) and event.x > settings.WINDOW_WIDTH - 60:
+        # Right-side vertical drag = zoom control
+        # Zone: x > 380 (moved inward from edge for round display usability)
+        if not getattr(self, '_window_open', False) and event.x > 380:
             if not hasattr(self, '_zoom_drag_y'):
                 self._zoom_drag_y = event.y
             else:
                 dy = self._zoom_drag_y - event.y  # drag up = zoom in
                 if abs(dy) > 3:
-                    self._adjust_zoom(dy * 0.003)  # smooth: 3px = ~1% zoom
+                    self._adjust_zoom(dy * 0.003)
                     self._zoom_drag_y = event.y
+
+        # Left-side vertical drag = focus control (liquid lens via UART)
+        # Zone: x < 100 (inside the touchable area of the round display)
+        elif not getattr(self, '_window_open', False) and event.x < 100:
+            if not hasattr(self, '_focus_drag_y'):
+                self._focus_drag_y = event.y
+            else:
+                dy = self._focus_drag_y - event.y  # drag up = focus far
+                if abs(dy) > 5:
+                    # Map to 0-100% focus range
+                    delta = int(dy * 0.5)
+                    new_focus = max(0, min(100, self._leds.get_focus() + delta))
+                    self._leds.set_focus(new_focus)
+                    self._show_message(f"FOCUS: {new_focus}%", "cyan", duration=500)
+                    self._focus_drag_y = event.y
 
     def _on_release(self, event):
         """Clear drag state on finger lift."""
         if hasattr(self, '_zoom_drag_y'):
             del self._zoom_drag_y
+        if hasattr(self, '_focus_drag_y'):
+            del self._focus_drag_y
 
     def _on_zoom_in(self, event):
         """Pinch zoom in (Linux scroll up / Button-4)."""
