@@ -62,12 +62,18 @@ class Recorder:
         filename = f"{prefix}_VIDEO_{timestamp}.mp4"
         self._video_path = os.path.join(save_folder, filename)
 
-        # Get frame dimensions
+        # Get frame dimensions and actual FPS
         frame = self._camera.get_frame()
         if frame is None:
             return False
 
         h, w = frame.shape[:2]
+        
+        # Use actual camera FPS (not configured target) to avoid duration mismatch
+        actual_fps = self._camera.fps
+        if actual_fps < 5:
+            actual_fps = 15  # fallback if camera hasn't reported yet
+        self._actual_fps = actual_fps
 
         # Try codecs until one works
         for codec in settings.VIDEO_CODECS:
@@ -76,10 +82,10 @@ class Recorder:
                 # Use .avi for MJPG codec, .mp4 for others
                 if codec == 'MJPG' and self._video_path.endswith('.mp4'):
                     self._video_path = self._video_path[:-4] + '.avi'
-                writer = cv2.VideoWriter(self._video_path, fourcc, settings.VIDEO_FPS, (w, h))
+                writer = cv2.VideoWriter(self._video_path, fourcc, self._actual_fps, (w, h))
                 if writer.isOpened():
                     self._writer = writer
-                    print(f"Recording codec: {codec}")
+                    print(f"Recording codec: {codec}, fps: {self._actual_fps}")
                     break
                 writer.release()
             except:
@@ -119,8 +125,8 @@ class Recorder:
         return path
 
     def _record_loop(self):
-        """Dedicated recording thread - grabs frames at video FPS."""
-        interval = 1.0 / settings.VIDEO_FPS
+        """Dedicated recording thread - grabs frames at actual camera FPS."""
+        interval = 1.0 / self._actual_fps
         last_frame_id = -1
 
         while self._recording:
