@@ -1,41 +1,37 @@
-# IXOPE U-Boot Config Fragment — Fast Boot + 3s Splash Logo for RK3566
-# Target: Show logo at 0.5s, hold for 3s, then boot kernel
+# IXOPE U-Boot Config Fragment — Fastest Possible Boot for RK3566
+# Target: Skip all splash/video, boot kernel immediately
 
 # ─── Boot Timing ──────────────────────────────────────────────────────
 # Zero boot delay — no interactive prompt, auto-boot immediately
 CONFIG_BOOTDELAY=0
 CONFIG_AUTOBOOT=y
 
-# Boot command: load splash → display 3s → boot kernel directly
+# Boot command: load kernel + DTB directly, no splash, no video init
 CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTCOMMAND="if load mmc 1:1 0x02000000 /boot/splash.bmp; then bmp display 0x02000000; sleep 3; fi; load mmc 1:1 0x02080000 /boot/Image; load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb; setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0; booti 0x02080000 - 0x0a100000"
+CONFIG_BOOTCOMMAND="load mmc 1:1 0x02080000 /boot/Image.lz4; load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb; setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 udev.event_timeout=5 loop.max_loop=4; booti 0x02080000 - 0x0a100000"
 
 # Enable sysboot/extlinux support (alternative boot method)
 CONFIG_CMD_PXE=y
 CONFIG_CMD_SYSBOOT=y
 
-# ─── Video / Splash ───────────────────────────────────────────────────
-# Enable video subsystem for HDMI splash
-CONFIG_VIDEO=y
-CONFIG_DM_VIDEO=y
-CONFIG_VIDEO_ROCKCHIP=y
-CONFIG_DISPLAY=y
-CONFIG_DRM_ROCKCHIP=y
-CONFIG_PHY_ROCKCHIP_INNO_HDMI=y
-CONFIG_ROCKCHIP_DW_HDMI=y
-CONFIG_I2C_EDID=y
-CONFIG_CONSOLE_SCROLL_LINES=10
-CONFIG_VIDEO_LOGO=y
+# ─── Fast Boot: Disable hash verification in SPL (saves ~2-3s) ───────
+CONFIG_FIT_SIGNATURE=n
+CONFIG_SPL_FIT_SIGNATURE=n
+CONFIG_SPL_SHA256=n
 
-# BMP splash support
-CONFIG_SPLASH_SCREEN=y
-CONFIG_SPLASH_SCREEN_ALIGN=y
-CONFIG_CMD_BMP=y
-CONFIG_BMP_16BPP=y
-CONFIG_BMP_24BPP=y
-CONFIG_BMP_32BPP=y
-CONFIG_VIDEO_BMP_RLE8=y
-CONFIG_VIDEO_BMP_GZIP=y
+# ─── NO Video in U-Boot (saves 2-3s HDMI/DRM probe time) ─────────────
+# Splash is handled by kernel framebuffer console (S01splash script)
+CONFIG_VIDEO=n
+CONFIG_DM_VIDEO=n
+CONFIG_VIDEO_ROCKCHIP=n
+CONFIG_DISPLAY=n
+CONFIG_DRM_ROCKCHIP=n
+CONFIG_PHY_ROCKCHIP_INNO_HDMI=n
+CONFIG_ROCKCHIP_DW_HDMI=n
+CONFIG_I2C_EDID=n
+CONFIG_VIDEO_LOGO=n
+CONFIG_SPLASH_SCREEN=n
+CONFIG_CMD_BMP=n
 
 # ─── Silent Console ──────────────────────────────────────────────────
 # No serial output from U-Boot (clean boot)
