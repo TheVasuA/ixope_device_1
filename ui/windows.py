@@ -2136,7 +2136,13 @@ class LEDWindow(BaseWindow):
                 return
 
     def _drag(self, event):
-        """Handle slider drag — adjust brightness in real time."""
+        """Handle slider drag — adjust brightness in real time (throttled)."""
+        import time
+        now = time.time()
+        # Throttle redraws to max ~15fps during drag to prevent UI freeze
+        if hasattr(self, '_last_drag') and (now - self._last_drag) < 0.066:
+            return
+        self._last_drag = now
         x, y = event.x, event.y
         for idx, (sx1, sy, sx2, sw) in self._slider_zones.items():
             if sx1 - 10 <= x <= sx2 + 10 and sy - 14 <= y <= sy + 14:

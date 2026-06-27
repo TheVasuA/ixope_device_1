@@ -107,7 +107,7 @@ class LEDController:
         """Background thread: read UART for battery updates from MCU."""
         while self._running:
             try:
-                line = self._uart.read_response(timeout=1.0)
+                line = self._uart.read_response(timeout=0.1)
                 if line:
                     self._parse_rx(line)
             except Exception:
