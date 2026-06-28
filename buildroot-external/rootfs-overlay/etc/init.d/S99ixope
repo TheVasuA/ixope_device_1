@@ -1,37 +1,22 @@
 #!/bin/sh
-# IXOPE Medical Device — Application startup (no delays)
+# IXOPE app is now started from S50xorg (immediately after X is ready)
+# This script exists only for stop/restart compatibility
 case "$1" in
   start)
-    printf "Starting IXOPE app: "
-
-    # Data dirs (fast — tmpfs or already exists)
-    mkdir -p /var/ixope-data/logs
-    mkdir -p /var/ixope-data/captured_images/{opth,oto,derm,micro}
-    mkdir -p /var/ixope-data/recorded_videos/{opth,oto,derm,micro}
-
-    export DISPLAY=:0
-    export IXOPE_BASE_PATH=/var/ixope-data
-    export HOME=/root
-
-    # X should already be up from S50xorg — just verify
-    if [ ! -e /tmp/.X11-unix/X0 ]; then
-      echo "FAIL (no X server)"
-      exit 1
-    fi
-
-    cd /opt/ixope
-    python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
-    echo $! > /var/run/ixope.pid
-    echo "OK"
+    # App already started by S50xorg
     ;;
   stop)
-    printf "Stopping IXOPE app: "
     [ -f /var/run/ixope.pid ] && kill $(cat /var/run/ixope.pid) 2>/dev/null
     rm -f /var/run/ixope.pid
-    echo "OK"
     ;;
   restart)
     $0 stop
-    $0 start
+    # Re-launch
+    export DISPLAY=:0
+    export IXOPE_BASE_PATH=/var/ixope-data
+    export HOME=/root
+    cd /opt/ixope
+    python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
+    echo $! > /var/run/ixope.pid
     ;;
 esac

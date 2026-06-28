@@ -1,19 +1,34 @@
 #!/bin/sh
-# Start Xorg — no delays, check if already running
+# Start Xorg + IXOPE app together — minimum gap between X ready and app launch
 case "$1" in
   start)
-    # Don't start if already running
     [ -e /tmp/.X11-unix/X0 ] && exit 0
     rm -f /tmp/.X0-lock
+
+    # Start X server
     Xorg :0 -nolisten tcp -noreset vt1 &
+
     # Wait for X socket (fast poll — 50ms intervals, max 1.5s)
     n=0
     while [ ! -e /tmp/.X11-unix/X0 ] && [ $n -lt 30 ]; do
       usleep 50000
       n=$((n + 1))
     done
+
+    # Launch app IMMEDIATELY after X is ready (don't wait for S99)
+    mkdir -p /var/ixope-data/logs
+    mkdir -p /var/ixope-data/captured_images/{opth,oto,derm,micro}
+    mkdir -p /var/ixope-data/recorded_videos/{opth,oto,derm,micro}
+    export DISPLAY=:0
+    export IXOPE_BASE_PATH=/var/ixope-data
+    export HOME=/root
+    cd /opt/ixope
+    python3 app.py >> /var/ixope-data/logs/boot.log 2>&1 &
+    echo $! > /var/run/ixope.pid
     ;;
   stop)
+    [ -f /var/run/ixope.pid ] && kill $(cat /var/run/ixope.pid) 2>/dev/null
+    rm -f /var/run/ixope.pid
     killall Xorg 2>/dev/null
     rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
     ;;
