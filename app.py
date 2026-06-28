@@ -144,7 +144,7 @@ class BootSplash:
         self._animate()
 
     def _load_frames(self):
-        gif_path = settings.BOOT_SPLASH_GIF
+        gif_path = settings.BOOT_SPLASH_IMAGE
         if os.path.isfile(gif_path):
             index = 0
             while True:

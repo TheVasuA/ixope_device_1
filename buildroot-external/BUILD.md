@@ -327,11 +327,9 @@ during the build. No manual conversion needed.
 
 1. **Video enabled in U-Boot** via `uboot.fragment` (`CONFIG_VIDEO=y`, `CONFIG_VIDEO_ROCKCHIP=y`)
 2. U-Boot initializes the DSI panel (uses same DTS as kernel)
-3. `CONFIG_BOOTCOMMAND` loads `/boot/splash.bmp` to memory
-4. `bmp display` renders it to the panel framebuffer
-5. `sleep 3` holds the image for 3 seconds
-6. `sysboot` loads `extlinux.conf` and boots the kernel
-7. Kernel re-initializes the panel — splash.py (Tkinter) shows until app is ready
+3. Kernel loads directly via extlinux.conf (no splash, no delay)
+4. Kernel boots with `quiet loglevel=0` — "IXOPE" text shown on fbcon
+5. Init scripts launch Xorg + app.py immediately
 
 ### Kernel Branch Explained
 
@@ -386,12 +384,11 @@ buildroot-external/
 │   └── ixope-app.mk
 └── rootfs-overlay/
     ├── etc/init.d/
-    │   ├── S01splash                 ← boot splash
-    │   ├── S45network                ← network config
+    │   ├── S01splash                 ← boot splash (fbcon text)
+    │   ├── S45network                ← network config (background)
     │   ├── S50xorg                   ← X server
     │   └── S99ixope                  ← app startup
-    └── opt/ixope/
-        └── splash.py                 ← Tkinter splash screen
+    └── opt/ixope/                    ← app installed by ixope-app package
 ```
 
 ---

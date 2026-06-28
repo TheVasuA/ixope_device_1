@@ -61,7 +61,7 @@ VIDEO_BASE = os.path.join(BASE_PATH, "recorded_videos")
 # The OTA updater operates here, NOT on BASE_PATH.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEPLOY_PATH = os.path.join(REPO_ROOT, "deploy")
-BOOT_SPLASH_GIF = os.path.join(DEPLOY_PATH, "boot_logo.gif")
+BOOT_SPLASH_IMAGE = os.path.join(DEPLOY_PATH, "image.png")
 
 SCOPE_IMAGE_FOLDERS = {
     'opth': os.path.join(IMAGE_BASE, "opth"),

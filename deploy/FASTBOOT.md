@@ -112,7 +112,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable ixope-bootlogo.service
 ```
 
-This draws `deploy/boot_logo.gif` straight to the framebuffer very early, and
+This draws `deploy/image.png` straight to the framebuffer very early, and
 `.xinitrc` kills `fbi` right before the app starts so the app's own Tkinter
 splash takes over with no black flash in between.
 

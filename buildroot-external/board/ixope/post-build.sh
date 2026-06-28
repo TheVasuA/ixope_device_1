@@ -13,8 +13,33 @@ echo "=== IXOPE Post-Build ==="
 # ─── Remove slow/unnecessary default init scripts ──────────────────────
 # These add seconds of delay and aren't needed for our kiosk app
 rm -f "$TARGET_DIR/etc/init.d/S01logging" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S01syslogd" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S02klogd" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S02sysctl" 2>/dev/null
 rm -f "$TARGET_DIR/etc/init.d/S20urandom" 2>/dev/null
 rm -f "$TARGET_DIR/etc/init.d/S40network" 2>/dev/null
+# Move these to background — they block the critical path
+rm -f "$TARGET_DIR/etc/init.d/S50dropbear" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S49ntp" 2>/dev/null
+rm -f "$TARGET_DIR/etc/init.d/S50ntpd" 2>/dev/null
+
+# ─── PATCH eudev to not block boot ────────────────────────────────────
+# Start udevd, trigger events, but NEVER wait. Device nodes for built-in
+# drivers (fb0, ttyS1, mmcblk) already exist from kernel. udev just handles
+# permissions and late hotplug (USB camera, WiFi after modprobe).
+cat > "$TARGET_DIR/etc/init.d/S10udev" << 'EOF'
+#!/bin/sh
+case "$1" in
+  start)
+    /sbin/udevd --daemon 2>/dev/null
+    udevadm trigger --action=add 2>/dev/null &
+    ;;
+  stop)
+    killall udevd 2>/dev/null
+    ;;
+esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S10udev"
 
 # ─── Add fast-boot scripts ─────────────────────────────────────────────
 # S00dmesg — suppress kernel console spam (instant)
@@ -37,21 +62,33 @@ esac
 EOF
 chmod 755 "$TARGET_DIR/etc/init.d/S01cpufreq"
 
-# S10modules — load WiFi driver (no sleep, no polling)
-cat > "$TARGET_DIR/etc/init.d/S10modules" << 'EOF'
+# S98background — start non-critical services AFTER app is up
+cat > "$TARGET_DIR/etc/init.d/S98background" << 'EOF'
 #!/bin/sh
 case "$1" in
   start)
-    if [ -d /lib/modules ]; then
-      KVER=$(ls /lib/modules/ | head -1)
-      [ -n "$KVER" ] && depmod -a "$KVER" 2>/dev/null
-      modprobe aic8800_bsp 2>/dev/null
-      modprobe aic8800_fdrv 2>/dev/null
-    fi
+    # SSH access (background, not blocking)
+    [ -x /usr/sbin/dropbear ] && dropbear -R 2>/dev/null &
     ;;
 esac
 EOF
-chmod 755 "$TARGET_DIR/etc/init.d/S10modules"
+chmod 755 "$TARGET_DIR/etc/init.d/S98background"
+
+# S11modules — load WiFi driver + deferred hardware modules
+# NOTE: depmod runs at build time (post-build), NOT at boot — saves 3-5s
+cat > "$TARGET_DIR/etc/init.d/S11modules" << 'EOF'
+#!/bin/sh
+case "$1" in
+  start)
+    # WiFi (critical for connectivity)
+    modprobe aic8800_bsp 2>/dev/null
+    modprobe aic8800_fdrv 2>/dev/null
+    # Deferred hardware (background, not blocking boot)
+    (modprobe panfrost 2>/dev/null; modprobe goodix 2>/dev/null) &
+    ;;
+esac
+EOF
+chmod 755 "$TARGET_DIR/etc/init.d/S11modules"
 
 # ─── extlinux.conf — kernel boot config ───────────────────────────────
 mkdir -p "$TARGET_DIR/boot/extlinux"
@@ -60,9 +97,9 @@ default ixope
 timeout 0
 
 label ixope
-    kernel /boot/Image
+    kernel /boot/Image.lz4
     fdt /boot/rk3566-radxa-zero-3w-ap6212.dtb
-    append root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 console=ttyS2,1500000
+    append root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 udev.event_timeout=5 loop.max_loop=4 console=ttyS2,1500000
 EOF
 
 # ─── fstab — fast mount options ────────────────────────────────────────
@@ -102,17 +139,12 @@ if [ -d "$TARGET_DIR/lib/firmware/aic8800D80" ]; then
     cd "$BOARD_DIR"
 fi
 
-# ─── U-Boot splash logo ────────────────────────────────────────────────
-# Copy deploy/logo.bmp to /boot/splash.bmp so U-Boot can load it
-IXOPE_ROOT="$(cd "$BOARD_DIR/../../../" && pwd)"
-LOGO_SRC="$IXOPE_ROOT/deploy/logo.bmp"
-if [ -f "$LOGO_SRC" ]; then
-    cp "$LOGO_SRC" "$TARGET_DIR/boot/splash.bmp"
-    echo "[OK] Splash logo copied from deploy/logo.bmp to /boot/splash.bmp"
-else
-    echo "[FAIL] deploy/logo.bmp not found at $LOGO_SRC"
-    echo "       Place your 480x480 BMP logo at: deploy/logo.bmp"
-    exit 1
+# ─── Run depmod at BUILD TIME (saves 3-5s at boot on SD card) ──────────
+# This generates modules.dep so modprobe works without depmod at runtime
+KVER=$(ls "$TARGET_DIR/lib/modules/" 2>/dev/null | head -1)
+if [ -n "$KVER" ]; then
+    depmod -a -b "$TARGET_DIR" "$KVER" 2>/dev/null
+    echo "[OK] depmod pre-generated for kernel $KVER"
 fi
 
 # ─── boot.scr fallback ────────────────────────────────────────────────

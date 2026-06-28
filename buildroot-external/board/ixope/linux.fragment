@@ -2,7 +2,19 @@
 # Applied on top of rockchip_linux_defconfig
 
 # ═══════════════════════════════════════════════════════════════
-# DRM/Display — MIPI DSI panel (ST7701S 480x480) + HDMI
+# FAST BOOT — Kernel compression + reduced printk
+# ═══════════════════════════════════════════════════════════════
+CONFIG_KERNEL_LZ4=y
+CONFIG_RD_LZ4=y
+CONFIG_PRINTK_TIME=y
+CONFIG_LOG_BUF_SHIFT=14
+# Suppress non-critical kernel messages during boot
+CONFIG_CONSOLE_LOGLEVEL_DEFAULT=1
+CONFIG_MESSAGE_LOGLEVEL_DEFAULT=1
+
+# ═══════════════════════════════════════════════════════════════
+# DRM/Display — MIPI DSI panel (ST7701S 480x480) ONLY
+# HDMI completely disabled — saves 5-10s EDID timeout at boot
 # ═══════════════════════════════════════════════════════════════
 CONFIG_DRM=y
 CONFIG_DRM_ROCKCHIP=y
@@ -11,22 +23,24 @@ CONFIG_DRM_PANEL_SIMPLE=y
 CONFIG_DRM_PANEL_SITRONIX_ST7701=y
 CONFIG_DRM_BRIDGE=y
 CONFIG_DRM_DW_MIPI_DSI=y
-CONFIG_DRM_DW_HDMI=y
 CONFIG_ROCKCHIP_VOP2=y
 CONFIG_ROCKCHIP_DW_MIPI_DSI=y
 CONFIG_DRM_MIPI_DSI=y
-CONFIG_PHY_ROCKCHIP_INNO_HDMI=y
 CONFIG_PHY_ROCKCHIP_INNO_DSIDPHY=y
 CONFIG_DRM_FBDEV_EMULATION=y
 CONFIG_FB=y
 CONFIG_FRAMEBUFFER_CONSOLE=y
 CONFIG_BACKLIGHT_CLASS_DEVICE=y
 CONFIG_BACKLIGHT_PWM=y
+# HDMI OFF — no monitor, no EDID probe, no timeout
+# CONFIG_DRM_DW_HDMI is not set
+# CONFIG_PHY_ROCKCHIP_INNO_HDMI is not set
+# CONFIG_ROCKCHIP_DW_HDMI is not set
 
 # ═══════════════════════════════════════════════════════════════
-# GPU (Panfrost for Mali G52)
+# GPU (Panfrost for Mali G52) — module, not needed at boot
 # ═══════════════════════════════════════════════════════════════
-CONFIG_DRM_PANFROST=y
+CONFIG_DRM_PANFROST=m
 
 # ═══════════════════════════════════════════════════════════════
 # V4L2 / USB Camera (built-in, not modules)
@@ -61,10 +75,10 @@ CONFIG_I2C_RK3X=y
 CONFIG_I2C_CHARDEV=y
 
 # ═══════════════════════════════════════════════════════════════
-# Touchscreen (Goodix GT911 — common on round displays)
+# Touchscreen (Goodix GT911 — module, loaded after app starts)
 # ═══════════════════════════════════════════════════════════════
 CONFIG_INPUT_TOUCHSCREEN=y
-CONFIG_TOUCHSCREEN_GOODIX=y
+CONFIG_TOUCHSCREEN_GOODIX=m
 
 # ═══════════════════════════════════════════════════════════════
 # UART/Serial
@@ -128,3 +142,87 @@ CONFIG_GPIO_ROCKCHIP=y
 # Device Tree Overlays
 # ═══════════════════════════════════════════════════════════════
 CONFIG_OF_OVERLAY=y
+
+# ═══════════════════════════════════════════════════════════════
+# DISABLE UNUSED SUBSYSTEMS — rockchip_linux_defconfig enables
+# these by default. Each one probes hardware at boot = wasted time.
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Bluetooth (not used, AIC8800 WiFi only) ──────────────────
+# CONFIG_BT is not set
+# CONFIG_BT_HCIUART is not set
+# CONFIG_BT_HCIBTUSB is not set
+
+# ─── Audio/Sound (no speaker on this device) ─────────────────
+# CONFIG_SOUND is not set
+# CONFIG_SND is not set
+# CONFIG_SND_SOC is not set
+# CONFIG_SND_SOC_ROCKCHIP is not set
+
+# ─── Ethernet (no ethernet port) ─────────────────────────────
+# CONFIG_NET_VENDOR_STMICRO is not set
+# CONFIG_STMMAC_ETH is not set
+# CONFIG_DWMAC_ROCKCHIP is not set
+# CONFIG_NET_VENDOR_REALTEK is not set
+
+# ─── CAN bus (not used) ───────────────────────────────────────
+# CONFIG_CAN is not set
+
+# ─── IIO / ADC (not used) ────────────────────────────────────
+# CONFIG_IIO is not set
+# CONFIG_ROCKCHIP_SARADC is not set
+
+# ─── Infrared (not used) ─────────────────────────────────────
+# CONFIG_RC_CORE is not set
+# CONFIG_IR_ROCKCHIP_CIR is not set
+
+# ─── Hardware crypto accelerator (not needed at boot) ─────────
+# CONFIG_CRYPTO_DEV_ROCKCHIP is not set
+
+# ─── NPU/RKNPU (not used) ────────────────────────────────────
+# CONFIG_ROCKCHIP_RKNPU is not set
+
+# ─── RGA (2D graphics accel — not needed for Tkinter) ─────────
+# CONFIG_ROCKCHIP_RGA2 is not set
+# CONFIG_ROCKCHIP_RGA_PROC is not set
+
+# ─── Video codec hardware (not used for boot) ────────────────
+# CONFIG_VIDEO_ROCKCHIP_VDEC is not set
+# CONFIG_VIDEO_ROCKCHIP_VENC is not set
+
+# ─── Thermal throttling (can delay probing) ──────────────────
+# Keep thermal but disable throttling polling at boot
+CONFIG_THERMAL=y
+# CONFIG_CPU_THERMAL is not set
+# CONFIG_DEVFREQ_THERMAL is not set
+
+# ─── SATA/PCIe (no ports on Zero 3W) ─────────────────────────
+# CONFIG_ATA is not set
+# CONFIG_SATA_AHCI is not set
+# CONFIG_SATA_AHCI_PLATFORM is not set
+# CONFIG_PCI is not set
+# CONFIG_PCIE_ROCKCHIP_DW_HOST is not set
+
+# ─── SPI (not used on this board for our peripherals) ─────────
+# CONFIG_SPI is not set
+# CONFIG_SPI_ROCKCHIP is not set
+
+# ─── Misc unused ─────────────────────────────────────────────
+# CONFIG_ROCKCHIP_IOMMU is not set
+# CONFIG_USB_GADGET is not set
+# CONFIG_USB_DWC2 is not set
+# CONFIG_LEDS_CLASS is not set
+# CONFIG_LEDS_GPIO is not set
+# CONFIG_NEW_LEDS is not set
+# CONFIG_INPUT_MISC is not set
+# CONFIG_INPUT_JOYSTICK is not set
+
+# ═══════════════════════════════════════════════════════════════
+# FAST BOOT — Kernel init speed tweaks
+# ═══════════════════════════════════════════════════════════════
+# Reduce USB probe settle time
+CONFIG_USB_AUTOSUSPEND_DELAY=0
+# Async probing for remaining drivers
+CONFIG_MODULES_TREE_LOOKUP=y
+# Skip unnecessary initcall debug
+# CONFIG_INITCALL_DEBUG is not set

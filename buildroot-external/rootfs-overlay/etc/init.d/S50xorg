@@ -6,10 +6,10 @@ case "$1" in
     [ -e /tmp/.X11-unix/X0 ] && exit 0
     rm -f /tmp/.X0-lock
     Xorg :0 -nolisten tcp -noreset vt1 &
-    # Wait for X socket (fast poll)
+    # Wait for X socket (fast poll — 50ms intervals, max 1.5s)
     n=0
     while [ ! -e /tmp/.X11-unix/X0 ] && [ $n -lt 30 ]; do
-      usleep 100000
+      usleep 50000
       n=$((n + 1))
     done
     ;;

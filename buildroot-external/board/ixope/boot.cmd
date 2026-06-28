@@ -1,21 +1,15 @@
-# U-Boot boot script for IXOPE — splash logo + fast direct boot
+# U-Boot boot script for IXOPE — fastest possible direct boot
 # Compile with: mkimage -C none -A arm64 -T script -d boot.cmd boot.scr
 #
-# This is a FALLBACK if extlinux.conf is not found.
-# Primary boot method is via extlinux.conf (set in uboot.fragment).
+# NO SPLASH in U-Boot. Text splash is done by kernel fbcon (S01splash).
+# This saves 2-3s of video subsystem probing.
 
-# Show splash logo for 3 seconds
-if load mmc 1:1 0x02000000 /boot/splash.bmp; then
-    bmp display 0x02000000
-    sleep 3
-fi
-
-# Load kernel + DTB from SD card (mmc 1, partition 1)
-load mmc 1:1 0x02080000 /boot/Image
+# Load compressed kernel + DTB from SD card (mmc 1, partition 1)
+load mmc 1:1 0x02080000 /boot/Image.lz4
 load mmc 1:1 0x0a100000 /boot/rk3566-radxa-zero-3w-ap6212.dtb
 
-# Boot args — quiet, fast, no cursor, DSI panel primary
-setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 console=ttyS2,1500000
+# Boot args — quiet, fast, no cursor, limited udev timeout
+setenv bootargs root=/dev/mmcblk1p1 rootfstype=ext4 rootwait rw quiet loglevel=0 vt.global_cursor_default=0 consoleblank=0 udev.event_timeout=5 loop.max_loop=4 console=ttyS2,1500000
 
 # Boot immediately
 booti 0x02080000 - 0x0a100000

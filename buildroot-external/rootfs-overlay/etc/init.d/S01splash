@@ -1,14 +1,12 @@
 #!/bin/sh
-# IXOPE — Show splash on framebuffer at boot (before X starts)
+# IXOPE — Show "IXOPE" centered on framebuffer immediately at boot
+# This is the FIRST thing the user sees after kernel starts (~3s from power on)
 case "$1" in
   start)
-    # Fill framebuffer with black + centered text fallback
-    if [ -c /dev/fb0 ]; then
-        # Clear framebuffer to black (480x480 ARGB)
-        dd if=/dev/zero of=/dev/fb0 bs=921600 count=1 2>/dev/null
-    fi
-    # Console fallback — hide cursor, show text
-    echo -e "\033[2J\033[H\033[?25l" > /dev/tty1 2>/dev/null
-    echo -e "\n\n\n\n\n\n\n\n\n          IXOPE\n\n        Loading..." > /dev/tty1 2>/dev/null
+    # Hide cursor and clear screen on console
+    printf '\033[2J\033[H\033[?25l' > /dev/tty1 2>/dev/null
+
+    # Center "IXOPE" on a 480x480 display (assuming ~30 rows, ~60 cols)
+    printf '\033[15;25H\033[1;37mIXOPE\033[0m' > /dev/tty1 2>/dev/null
     ;;
 esac
