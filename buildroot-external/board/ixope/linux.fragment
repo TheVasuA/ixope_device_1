@@ -2,6 +2,17 @@
 # Applied on top of rockchip_linux_defconfig
 
 # ═══════════════════════════════════════════════════════════════
+# DRIVER FIXES — Disable broken drivers + fix compile errors
+# ═══════════════════════════════════════════════════════════════
+# Mali Bifrost GPU — compile error with GCC 12+ (not needed, Tkinter uses CPU rendering)
+# CONFIG_MALI_BIFROST is not set
+# CONFIG_MALI_MIDGARD is not set
+
+# Headset driver needs IIO subsystem — enable it
+CONFIG_IIO=y
+CONFIG_IIO_BUFFER=y
+
+# ═══════════════════════════════════════════════════════════════
 # FAST BOOT — Kernel compression + reduced printk
 # ═══════════════════════════════════════════════════════════════
 CONFIG_KERNEL_LZ4=y
@@ -41,6 +52,13 @@ CONFIG_BACKLIGHT_PWM=y
 # GPU (Panfrost for Mali G52) — module, not needed at boot
 # ═══════════════════════════════════════════════════════════════
 CONFIG_DRM_PANFROST=m
+# Disable the proprietary Mali kbase driver (Midgard/Bifrost) — the
+# Radxa BSP defconfig builds it in (=y), but we use Panfrost instead.
+# The built-in kbase driver also fails to compile because its DEVFREQ
+# path references dfc_power, which only exists with DEVFREQ_THERMAL=y
+# (intentionally left off below for faster boot).
+# CONFIG_MALI_MIDGARD is not set
+# CONFIG_MALI_BIFROST is not set
 
 # ═══════════════════════════════════════════════════════════════
 # V4L2 / USB Camera (built-in, not modules)
@@ -158,6 +176,9 @@ CONFIG_OF_OVERLAY=y
 # CONFIG_SND is not set
 # CONFIG_SND_SOC is not set
 # CONFIG_SND_SOC_ROCKCHIP is not set
+# Rockchip headset detection driver — needs IIO ADC (disabled below)
+# and there is no headset/audio jack on this device.
+# CONFIG_RK_HEADSET is not set
 
 # ─── Ethernet (no ethernet port) ─────────────────────────────
 # CONFIG_NET_VENDOR_STMICRO is not set
